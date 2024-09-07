@@ -25,7 +25,7 @@ impl Program {
         }
     }
     // write json to stdout or blow up the program
-    pub fn dump_json_to_stdout(&self) {
+    pub fn dump_json(&self) {
         let json = serde_json::to_string(&self).unwrap();
         io::stdout().write_all(json.as_bytes()).unwrap();
         io::stdout().flush().unwrap();
