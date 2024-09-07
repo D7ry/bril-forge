@@ -1,12 +1,13 @@
-use std::io::{self, Read, Write};
+#![allow(non_snake_case)]
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io::{self, Read, Write};
 
 // reads a program from a pipe, if not successful panik
 pub fn read_from_pipe() -> Program {
     let mut buffer = String::new();
     let _ = io::stdin().read_to_string(&mut buffer).unwrap();
-    let program : Program = serde_json::from_str(&buffer).unwrap();
+    let program: Program = serde_json::from_str(&buffer).unwrap();
     return program;
 }
 
@@ -32,6 +33,17 @@ impl Program {
     }
 }
 
+#[derive(Debug)]
+pub struct BasicBlock<'a> {
+    pub instrs: Vec<&'a Instruction>,
+}
+
+impl<'a> BasicBlock<'a> {
+    pub fn new() -> BasicBlock<'a> {
+        BasicBlock { instrs: Vec::new() }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Function {
     pub name: String,
@@ -41,6 +53,46 @@ pub struct Function {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "type")]
     pub return_type: Option<Type>,
+}
+
+impl Function {
+    // except for the first BB, each BB begins with its own label
+    // and ends with a new label
+    pub fn gen_basic_blocks(&self) -> Vec<BasicBlock> {
+        let mut ret: Vec<BasicBlock> = Vec::new();
+        let mut current_block = BasicBlock::new();
+
+        for inst in self.instrs.iter() {
+            match (inst.is_label(), inst.is_control_inst()) {
+                (true, _) => {
+                    // only start a new block if the label would
+                    // otherwise break the current BB's invariant
+                    if !current_block.instrs.is_empty() {
+                        ret.push(current_block);
+                        current_block = BasicBlock::new();
+                    }
+                    // push label inst
+                    current_block.instrs.push(inst);
+                }
+                (_, true) => { // is control
+                    // push control inst to current block
+                    current_block.instrs.push(inst);
+                    ret.push(current_block);
+                    // end current block
+                    current_block = BasicBlock::new();
+                }
+                _ => {
+                    // For other instructions, add to the current block
+                    current_block.instrs.push(inst);
+                }
+            }
+        }
+        if !current_block.instrs.is_empty() {
+            ret.push(current_block);
+        }
+
+        ret
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,14 +105,15 @@ pub struct Argument {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Type {
-    Primitive (String),
+    Primitive(String),
     Pointer { ptr: String },
     // other wrapper types?
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Instruction { // instruction can either have opcode, or just be label or nop
+pub enum Instruction {
+    // instruction can either have opcode, or just be label or nop
     Opcode(OpcodeInstruction),
     Label { label: String },
     Nop { op: String },
@@ -68,8 +121,9 @@ pub enum Instruction { // instruction can either have opcode, or just be label o
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op")]
- #[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum OpcodeInstruction {
+    // half of it generated with chatgipidy because im lazy
     #[serde(rename = "const")]
     Const {
         dest: String,
@@ -254,6 +308,148 @@ pub enum OpcodeInstruction {
         typ: Type,
     },
     Jmp {
-        labels: Vec<String>
+        labels: Vec<String>,
+    },
+}
+
+impl Instruction {
+    // jmp, br
+    pub fn is_control_inst(&self) -> bool {
+        if let Instruction::Opcode(Inst) = self {
+            match Inst {
+                OpcodeInstruction::Jmp { .. } | OpcodeInstruction::Br { .. } => true,
+                _ => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn is_label(&self) -> bool {
+        match self {
+            Instruction::Label { label } => true,
+            _ => false,
+        }
+    }
+
+    // FIXME: this does not check for callinst, for now this is only used for naive dce as a poc
+    pub fn is_pure(&self) -> bool {
+        match self {
+            Instruction::Opcode(Inst) => {
+                if let OpcodeInstruction::Print { .. } = Inst {
+                    false
+                } else if self.is_control_inst() {
+                    false
+                } else {
+                    true
+                }
+            }
+            _ => true,
+        }
+    }
+
+    pub fn get_use_list(&self) -> Vec<String> {
+        match self {
+            Instruction::Opcode(Inst) => Inst.get_use_list(),
+            Instruction::Label { label } => Vec::new(),
+            Instruction::Nop { op } => Vec::new(),
+        }
+    }
+
+    pub fn get_result(&self) -> Option<String> {
+        match self {
+            Instruction::Opcode(Inst) => Inst.get_result(),
+            Instruction::Label { label } => Option::None,
+            Instruction::Nop { op } => Option::None,
+        }
+    }
+}
+
+impl OpcodeInstruction {
+    pub fn get_result(&self) -> Option<String> {
+        match self {
+            OpcodeInstruction::Const { dest, .. }
+            | OpcodeInstruction::Alloc { dest, .. }
+            | OpcodeInstruction::Id { dest, .. }
+            | OpcodeInstruction::Ptradd { dest, .. }
+            | OpcodeInstruction::Or { dest, .. }
+            | OpcodeInstruction::Add { dest, .. }
+            | OpcodeInstruction::Sub { dest, .. }
+            | OpcodeInstruction::Div { dest, .. }
+            | OpcodeInstruction::Mul { dest, .. }
+            | OpcodeInstruction::FAdd { dest, .. }
+            | OpcodeInstruction::FSub { dest, .. }
+            | OpcodeInstruction::FDiv { dest, .. }
+            | OpcodeInstruction::FMul { dest, .. }
+            | OpcodeInstruction::Eq { dest, .. }
+            | OpcodeInstruction::Gt { dest, .. }
+            | OpcodeInstruction::Ge { dest, .. }
+            | OpcodeInstruction::Lt { dest, .. }
+            | OpcodeInstruction::Le { dest, .. }
+            | OpcodeInstruction::FEq { dest, .. }
+            | OpcodeInstruction::FGt { dest, .. }
+            | OpcodeInstruction::FGe { dest, .. }
+            | OpcodeInstruction::FLt { dest, .. }
+            | OpcodeInstruction::FLe { dest, .. }
+            | OpcodeInstruction::And { dest, .. }
+            | OpcodeInstruction::Not { dest, .. }
+            | OpcodeInstruction::Load { dest, .. } => Some(dest.clone()),
+
+            OpcodeInstruction::Print { .. }
+            | OpcodeInstruction::Free { .. }
+            | OpcodeInstruction::Ret { .. }
+            | OpcodeInstruction::Store { .. }
+            | OpcodeInstruction::Br { .. }
+            | OpcodeInstruction::Jmp { .. } => None,
+
+            // callInst's dest is an optional
+            OpcodeInstruction::Call { dest, .. } => dest.clone(),
+        }
+    }
+    pub fn get_use_list(&self) -> Vec<String> {
+        // this is why i like C more, you just use a union to get to the args field
+        match self {
+            OpcodeInstruction::Const { dest, typ, value } => Vec::new(),
+            OpcodeInstruction::Alloc { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Call {
+                args,
+                dest,
+                funcs,
+                typ,
+            } => match args {
+                Some(args) => args.to_vec(),
+                None => Vec::new(),
+            },
+            OpcodeInstruction::Print { args } => args.to_vec(),
+            OpcodeInstruction::Free { args } => args.to_vec(),
+            OpcodeInstruction::Ret { args } => args.to_vec(),
+            OpcodeInstruction::Id { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Store { args } => args.to_vec(),
+            OpcodeInstruction::Ptradd { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Br { args, labels } => args.to_vec(),
+            OpcodeInstruction::Or { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Add { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Sub { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Div { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Mul { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FAdd { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FSub { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FDiv { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FMul { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Eq { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Gt { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Ge { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Lt { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Le { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FEq { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FGt { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FGe { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FLt { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::FLe { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::And { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Not { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Load { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Jmp { labels } => Vec::new(),
+        }
     }
 }
