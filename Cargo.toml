@@ -1,0 +1,16 @@
+[package]
+name = "forge"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "01_trivial_global_dce"
+path = "src/01_trivial_global_dce/main.rs"
+
+[[bin]]
+name = "01_local_dce"
+path = "src/01_local_dce/main.rs"
+
+[[bin]]
+name = "01_local_value_numbering"
+path = "src/01_local_value_numbering/main.rs"
