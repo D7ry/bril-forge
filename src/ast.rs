@@ -34,12 +34,12 @@ impl Program {
 }
 
 #[derive(Debug)]
-pub struct BasicBlock<'a> {
-    pub instrs: Vec<&'a Instruction>,
+pub struct BasicBlock {
+    pub instrs: Vec<Instruction>,
 }
 
-impl<'a> BasicBlock<'a> {
-    pub fn new() -> BasicBlock<'a> {
+impl BasicBlock {
+    pub fn new() -> BasicBlock {
         BasicBlock { instrs: Vec::new() }
     }
 }
@@ -56,9 +56,11 @@ pub struct Function {
 }
 
 impl Function {
-    // except for the first BB, each BB begins with its own label
-    // and ends with a new label
-    pub fn gen_basic_blocks(&self) -> Vec<BasicBlock> {
+
+    // get all the basic blocks of the function
+    // note that instructions in BB are cloned instructions
+    // so only may use it for anlysis passes
+    pub fn get_basic_blocks(&self) -> Vec<BasicBlock> {
         let mut ret: Vec<BasicBlock> = Vec::new();
         let mut current_block = BasicBlock::new();
 
@@ -72,18 +74,18 @@ impl Function {
                         current_block = BasicBlock::new();
                     }
                     // push label inst
-                    current_block.instrs.push(inst);
+                    current_block.instrs.push(inst.clone());
                 }
                 (_, true) => { // is control
                     // push control inst to current block
-                    current_block.instrs.push(inst);
+                    current_block.instrs.push(inst.clone());
                     ret.push(current_block);
                     // end current block
                     current_block = BasicBlock::new();
                 }
                 _ => {
                     // For other instructions, add to the current block
-                    current_block.instrs.push(inst);
+                    current_block.instrs.push(inst.clone());
                 }
             }
         }
@@ -102,7 +104,7 @@ pub struct Argument {
     arg_type: Type,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Type {
     Primitive(String),
@@ -110,7 +112,7 @@ pub enum Type {
     // other wrapper types?
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Instruction {
     // instruction can either have opcode, or just be label or nop
@@ -119,7 +121,7 @@ pub enum Instruction {
     Nop { op: String },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "op")]
 #[serde(rename_all = "lowercase")]
 pub enum OpcodeInstruction {

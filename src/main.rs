@@ -25,6 +25,7 @@ fn main() {
     let dispatch_table : HashMap<&str, fn(&mut Program) -> bool>  = create_pass_map!(
         delete_everything_pass,
         do_nothing_pass,
+        naive_dce_pass,
         local_dce_pass
     );
 
@@ -45,5 +46,7 @@ fn main() {
         }
     }
 
-    program.dump_json();
+    // can call program.dump() similar to llvm to debug
+
+    program.dump_json(); // json is piped out to the output
 }
