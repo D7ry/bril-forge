@@ -1,18 +1,6 @@
-#![allow(non_snake_case)]
 use crate::ast;
 use ast::*;
 use std::collections::{HashMap, HashSet};
-
-// spaghettiness is getting close to nvidia opengl compiler
-
-pub fn delete_everything_pass(program: &mut Program) -> bool {
-    program.functions.clear();
-    true
-}
-
-pub fn do_nothing_pass(_program: &mut Program) -> bool {
-    false
-}
 
 // perform dce on the bb once, return whether anything changed
 // mutate bb in place
@@ -55,7 +43,8 @@ fn dce_function(function: &mut Function) -> bool {
     let mut basic_blocks = function.get_basic_blocks();
 
     for basic_block in basic_blocks.iter_mut() {
-        loop { // keep doing bb's dce until no change
+        loop {
+            // keep doing bb's dce until no change
             let dce_bb_changed = dce_bb(basic_block);
             changed |= dce_bb_changed;
             if !dce_bb_changed {
@@ -64,7 +53,8 @@ fn dce_function(function: &mut Function) -> bool {
         }
     }
 
-    if changed { // bb has changed, flush bb's instrs back to function
+    if changed {
+        // bb has changed, flush bb's instrs back to function
         function.instrs.clear();
         for basic_block in basic_blocks.iter_mut() {
             function.instrs.append(&mut basic_block.instrs); // append is okay because bbs are

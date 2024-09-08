@@ -1,9 +1,8 @@
-use std::env;
 use std::collections::HashMap;
+use std::env;
 mod ast;
 mod passes;
-
-use ast::*;
+use ast::*; // dispatch table definition
 
 macro_rules! create_pass_map {
     ($($name:ident),*) => {
@@ -21,10 +20,15 @@ macro_rules! create_pass_map {
 // bril_forge <pass name>...
 //
 fn main() {
-    use passes::*;
-    let dispatch_table : HashMap<&str, fn(&mut Program) -> bool>  = create_pass_map!(
+    // construct dispatch table
+    use passes::dce::*;
+    use passes::example::*;
+
+    let dispatch_table: HashMap<&str, fn(&mut Program) -> bool> = create_pass_map!(
+        // example passes
         delete_everything_pass,
         do_nothing_pass,
+        // dce passes
         naive_dce_pass,
         local_dce_pass
     );
