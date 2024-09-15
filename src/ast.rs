@@ -329,15 +329,15 @@ impl Instruction {
 
     pub fn is_label(&self) -> bool {
         match self {
-            Instruction::Label { label } => true,
+            Instruction::Label { .. } => true,
             _ => false,
         }
     }
 
-    // FIXME: this does not check for callinst, for now this is only used for naive dce as a poc
     pub fn is_pure(&self) -> bool {
         match self {
             Instruction::Opcode(Inst) => match Inst {
+                // call inst has unpredictable behavior, so mark as inpure for now
                 OpcodeInstruction::Print { .. } | OpcodeInstruction::Call { .. } => false,
                 _ => {
                     if self.is_control_inst() {
@@ -354,16 +354,16 @@ impl Instruction {
     pub fn get_use_list(&self) -> Vec<String> {
         match self {
             Instruction::Opcode(Inst) => Inst.get_use_list(),
-            Instruction::Label { label } => Vec::new(),
-            Instruction::Nop { op } => Vec::new(),
+            Instruction::Label { .. } => Vec::new(),
+            Instruction::Nop { .. } => Vec::new(),
         }
     }
 
     pub fn get_result(&self) -> Option<String> {
         match self {
             Instruction::Opcode(Inst) => Inst.get_result(),
-            Instruction::Label { label } => Option::None,
-            Instruction::Nop { op } => Option::None,
+            Instruction::Label { .. } => Option::None,
+            Instruction::Nop { .. } => Option::None,
         }
     }
 }
