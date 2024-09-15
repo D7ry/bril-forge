@@ -334,11 +334,16 @@ impl Instruction {
         }
     }
 
+    // whether a instruction has "sideeffects"
     pub fn is_pure(&self) -> bool {
         match self {
             Instruction::Opcode(Inst) => match Inst {
-                // call inst has unpredictable behavior, so mark as inpure for now
-                OpcodeInstruction::Print { .. } | OpcodeInstruction::Call { .. } => false,
+                OpcodeInstruction::Print { .. }
+                | OpcodeInstruction::Call { .. }
+                | OpcodeInstruction::Ret { .. }
+                | OpcodeInstruction::Store { .. }
+                | OpcodeInstruction::Free { .. }
+                => false,
                 _ => {
                     if self.is_control_inst() {
                         false
@@ -362,7 +367,7 @@ impl Instruction {
     pub fn get_result(&self) -> Option<String> {
         match self {
             Instruction::Opcode(Inst) => Inst.get_result(),
-            Instruction::Label { .. } => Option::None,
+            Instruction::Label { label } => Some(label.clone()),
             Instruction::Nop { .. } => Option::None,
         }
     }
@@ -424,7 +429,11 @@ impl OpcodeInstruction {
             OpcodeInstruction::Id { args, .. } => args.to_vec(),
             OpcodeInstruction::Store { args } => args.to_vec(),
             OpcodeInstruction::Ptradd { args, .. } => args.to_vec(),
-            OpcodeInstruction::Br { args, .. } => args.to_vec(),
+            OpcodeInstruction::Br { args, labels } => {
+                let mut uses: Vec<String> = args.to_vec(); // branch also use label insts
+                labels.iter().for_each(|label| uses.push(label.clone()));
+                uses
+            }
             OpcodeInstruction::Or { args, .. } => args.to_vec(),
             OpcodeInstruction::Add { args, .. } => args.to_vec(),
             OpcodeInstruction::Sub { args, .. } => args.to_vec(),
@@ -447,7 +456,7 @@ impl OpcodeInstruction {
             OpcodeInstruction::And { args, .. } => args.to_vec(),
             OpcodeInstruction::Not { args, .. } => args.to_vec(),
             OpcodeInstruction::Load { args, .. } => args.to_vec(),
-            OpcodeInstruction::Jmp { .. } => Vec::new(),
+            OpcodeInstruction::Jmp { labels } => labels.to_vec(),
         }
     }
 }
