@@ -56,7 +56,6 @@ pub struct Function {
 }
 
 impl Function {
-
     // get all the basic blocks of the function
     // note that instructions in BB are cloned instructions
     // so only may use it for anlysis passes
@@ -76,7 +75,8 @@ impl Function {
                     // push label inst
                     current_block.instrs.push(inst.clone());
                 }
-                (_, true) => { // is control
+                (_, true) => {
+                    // is control
                     // push control inst to current block
                     current_block.instrs.push(inst.clone());
                     ret.push(current_block);
@@ -337,15 +337,16 @@ impl Instruction {
     // FIXME: this does not check for callinst, for now this is only used for naive dce as a poc
     pub fn is_pure(&self) -> bool {
         match self {
-            Instruction::Opcode(Inst) => {
-                if let OpcodeInstruction::Print { .. } = Inst {
-                    false
-                } else if self.is_control_inst() {
-                    false
-                } else {
-                    true
+            Instruction::Opcode(Inst) => match Inst {
+                OpcodeInstruction::Print { .. } | OpcodeInstruction::Call { .. } => false,
+                _ => {
+                    if self.is_control_inst() {
+                        false
+                    } else {
+                        true
+                    }
                 }
-            }
+            },
             _ => true,
         }
     }
@@ -411,47 +412,42 @@ impl OpcodeInstruction {
     pub fn get_use_list(&self) -> Vec<String> {
         // this is why i like C more, you just use a union to get to the args field
         match self {
-            OpcodeInstruction::Const { dest, typ, value } => Vec::new(),
-            OpcodeInstruction::Alloc { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Call {
-                args,
-                dest,
-                funcs,
-                typ,
-            } => match args {
+            OpcodeInstruction::Const { .. } => Vec::new(),
+            OpcodeInstruction::Alloc { args, .. } => args.to_vec(),
+            OpcodeInstruction::Call { args, .. } => match args {
                 Some(args) => args.to_vec(),
                 None => Vec::new(),
             },
             OpcodeInstruction::Print { args } => args.to_vec(),
             OpcodeInstruction::Free { args } => args.to_vec(),
             OpcodeInstruction::Ret { args } => args.to_vec(),
-            OpcodeInstruction::Id { args, dest, typ } => args.to_vec(),
+            OpcodeInstruction::Id { args, .. } => args.to_vec(),
             OpcodeInstruction::Store { args } => args.to_vec(),
-            OpcodeInstruction::Ptradd { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Br { args, labels } => args.to_vec(),
-            OpcodeInstruction::Or { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Add { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Sub { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Div { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Mul { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FAdd { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FSub { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FDiv { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FMul { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Eq { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Gt { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Ge { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Lt { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Le { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FEq { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FGt { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FGe { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FLt { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::FLe { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::And { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Not { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Load { args, dest, typ } => args.to_vec(),
-            OpcodeInstruction::Jmp { labels } => Vec::new(),
+            OpcodeInstruction::Ptradd { args, .. } => args.to_vec(),
+            OpcodeInstruction::Br { args, .. } => args.to_vec(),
+            OpcodeInstruction::Or { args, .. } => args.to_vec(),
+            OpcodeInstruction::Add { args, .. } => args.to_vec(),
+            OpcodeInstruction::Sub { args, .. } => args.to_vec(),
+            OpcodeInstruction::Div { args, .. } => args.to_vec(),
+            OpcodeInstruction::Mul { args, .. } => args.to_vec(),
+            OpcodeInstruction::FAdd { args, .. } => args.to_vec(),
+            OpcodeInstruction::FSub { args, .. } => args.to_vec(),
+            OpcodeInstruction::FDiv { args, .. } => args.to_vec(),
+            OpcodeInstruction::FMul { args, .. } => args.to_vec(),
+            OpcodeInstruction::Eq { args, .. } => args.to_vec(),
+            OpcodeInstruction::Gt { args, .. } => args.to_vec(),
+            OpcodeInstruction::Ge { args, .. } => args.to_vec(),
+            OpcodeInstruction::Lt { args, .. } => args.to_vec(),
+            OpcodeInstruction::Le { args, .. } => args.to_vec(),
+            OpcodeInstruction::FEq { args, .. } => args.to_vec(),
+            OpcodeInstruction::FGt { args, .. } => args.to_vec(),
+            OpcodeInstruction::FGe { args, .. } => args.to_vec(),
+            OpcodeInstruction::FLt { args, .. } => args.to_vec(),
+            OpcodeInstruction::FLe { args, .. } => args.to_vec(),
+            OpcodeInstruction::And { args, .. } => args.to_vec(),
+            OpcodeInstruction::Not { args, .. } => args.to_vec(),
+            OpcodeInstruction::Load { args, .. } => args.to_vec(),
+            OpcodeInstruction::Jmp { .. } => Vec::new(),
         }
     }
 }
