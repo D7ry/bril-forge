@@ -8,10 +8,9 @@ fn dce_bb(basic_block: &mut BasicBlock) -> bool {
     // because rust compiler sucks storing pointer isn't an option
     let mut unused_instructions: HashMap<String, usize> = HashMap::new(); // symbol -> inst index
                                                                           // in BB
-
     for (i, instruction) in basic_block.instrs.iter().enumerate() {
         for use_key in instruction.get_use_list() {
-            unused_instructions.remove(&use_key);
+            unused_instructions.remove(&use_key).unwrap();
         }
 
         if let Some(result_key) = instruction.get_result() {
@@ -78,23 +77,23 @@ pub fn local_dce_pass(program: &mut Program) -> bool {
 pub fn naive_dce_pass(program: &mut Program) -> bool {
     let mut changed: bool = false;
     let mut used_vars: HashSet<String> = HashSet::new();
-    for Fn in program.functions.iter_mut() {
-        let before = Fn.instrs.len();
+    for function in program.functions.iter_mut() {
+        let before = function.instrs.len();
 
-        for Inst in &Fn.instrs {
-            let uses = Inst.get_use_list();
-            for U in uses {
-                used_vars.insert(U);
+        for inst in &function.instrs {
+            let uses = inst.get_use_list();
+            for u in uses {
+                used_vars.insert(u);
             }
         }
 
-        Fn.instrs.retain(|inst| {
+        function.instrs.retain(|inst| {
             !inst.is_pure() || // not pure
                 inst.get_result().map_or(false, |result| used_vars.contains(&result))
             // has a result that is being used somewhere else
         });
 
-        changed = Fn.instrs.len() != before;
+        changed = function.instrs.len() != before;
         used_vars.clear();
     }
 
