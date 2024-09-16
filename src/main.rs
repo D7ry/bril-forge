@@ -50,7 +50,6 @@ fn main() {
         }
     }
 
-    // can call program.dump() similar to llvm to debug
 
     program.dump_json(); // json is piped out to the output
 }

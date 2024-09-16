@@ -36,11 +36,12 @@ impl Program {
 #[derive(Debug)]
 pub struct BasicBlock {
     pub instrs: Vec<Instruction>,
+    pub in_label: Option<String> // label which other bb's use to jump in to this bb
 }
 
 impl BasicBlock {
     pub fn new() -> BasicBlock {
-        BasicBlock { instrs: Vec::new() }
+        BasicBlock { instrs: Vec::new(), in_label: None}
     }
 }
 
@@ -74,6 +75,7 @@ impl Function {
                     }
                     // push label inst
                     current_block.instrs.push(inst.clone());
+                    current_block.in_label = inst.get_result(); // mark in label
                 }
                 (_, true) => {
                     // is control
@@ -82,6 +84,9 @@ impl Function {
                     ret.push(current_block);
                     // end current block
                     current_block = BasicBlock::new();
+                }
+                (true, true) => {
+                    panic!("instruction cannot be both a label and a control instruction!");
                 }
                 _ => {
                     // For other instructions, add to the current block
@@ -335,13 +340,14 @@ impl Instruction {
     }
 
     // whether a instruction has "sideeffects"
-    pub fn is_pure(&self) -> bool {
+    pub fn has_no_side_effects(&self) -> bool {
         match self {
             Instruction::Opcode(Inst) => match Inst {
                 OpcodeInstruction::Print { .. }
                 | OpcodeInstruction::Call { .. }
                 | OpcodeInstruction::Ret { .. }
                 | OpcodeInstruction::Store { .. }
+                | OpcodeInstruction::Alloc { .. }
                 | OpcodeInstruction::Free { .. }
                 => false,
                 _ => {
