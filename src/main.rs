@@ -22,6 +22,7 @@ macro_rules! create_pass_map {
 fn main() {
     // construct dispatch table
     use passes::dce::*;
+    use passes::lvn::*;
     use passes::example::*;
 
     let dispatch_table: HashMap<&str, fn(&mut Program) -> bool> = create_pass_map!(
@@ -30,7 +31,9 @@ fn main() {
         do_nothing_pass,
         // dce passes
         naive_dce_pass,
-        local_dce_pass
+        local_dce_pass,
+        // lvn pass
+        lvn_pass
     );
 
     // read program
