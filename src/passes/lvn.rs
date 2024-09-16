@@ -50,26 +50,31 @@ fn lvn_bb(bb: &mut BasicBlock) -> bool {
     let changed: bool;
 
     let mut expression_hash_to_value_number: HashMap<String, u32> = HashMap::new();
-    let mut variable_to_value_number: HashMap<String, u32> = HashMap::new();
+    // <variable, Vec<value numbers depending on the variable>>
+    let mut variable_to_value_numbers: HashMap<String, Vec<u32>> = HashMap::new();
     let mut value_number_to_expression: HashMap<u32, String> = HashMap::new();
     let mut value_number_to_variable: HashMap<u32, String> = HashMap::new();
 
     // build up the lvn table, good old spir-v time
-    let mut i: u32 = 0; // counter for value number
+    let mut vn: u32 = 0; // counter for value number
 
     //
     let mut inst_to_replace: Vec<(usize, OpcodeInstruction)> = Vec::new();
 
+    // note that we invalidate value numbers whose expression's operands are updated
     for (inst_idx, inst) in bb.instrs.iter_mut().enumerate() {
         match inst {
             // only opcode insts can have rhs
             Instruction::Opcode(opcode_inst) => {
+                // please don't look at it
                 if let Some(rhs_expr_hash) = get_rhs_hash(opcode_inst) {
                     if let Some(opcode_inst_dest) = opcode_inst.get_dest() {
                         if let Some(opcode_inst_type) = opcode_inst.get_type() {
+                            // found matching value member, can perform CSE
                             if expression_hash_to_value_number.contains_key(&rhs_expr_hash) {
                                 let value_number =
                                     expression_hash_to_value_number.get(&rhs_expr_hash).unwrap();
+                                // println!("{} maps to value number {}", rhs_expr_hash, value_number);
                                 // CSE
                                 let variable =
                                     value_number_to_variable.get(value_number).unwrap().clone();
@@ -77,19 +82,47 @@ fn lvn_bb(bb: &mut BasicBlock) -> bool {
                                 // can replace inst with an assignment
                                 let assignment_inst = OpcodeInstruction::Id {
                                     args: vec![variable],
-                                    dest: opcode_inst_dest,
+                                    dest: opcode_inst_dest.clone(),
                                     typ: opcode_inst_type,
                                 };
                                 inst_to_replace.push((inst_idx, assignment_inst));
+                                // println!("{:?}", inst_to_replace);
                             } else {
                                 // expression not yet stored, store it as value number
-                                expression_hash_to_value_number.insert(rhs_expr_hash.clone(), i);
-                                value_number_to_expression.insert(i, rhs_expr_hash.clone());
+                                expression_hash_to_value_number.insert(rhs_expr_hash.clone(), vn);
+                                value_number_to_expression.insert(vn, rhs_expr_hash.clone());
 
-                                variable_to_value_number.insert(opcode_inst_dest.clone(), i);
-                                value_number_to_variable.insert(i, opcode_inst_dest.clone());
-                                i += 1;
+                                // record value number dependency on BB variables
+                                opcode_inst.get_use_list().iter().for_each(|u| {
+                                    if !variable_to_value_numbers.contains_key(u) {
+                                        variable_to_value_numbers.insert(u.clone(), Vec::new());
+                                    }
+                                    variable_to_value_numbers.get_mut(u).unwrap().push(vn)
+                                });
+                                value_number_to_variable.insert(vn, opcode_inst_dest.clone());
+                                vn += 1;
                             }
+                        }
+                        // invalidate all value numbers that depends on the lvalue of this assign
+                        // stmt
+                        if let Some(value_numbers_to_invalidate) =
+                            variable_to_value_numbers.get_mut(&opcode_inst_dest)
+                        {
+                            // println!("Invalidating all value numbers depending on {}", opcode_inst_dest);
+                            for value_number in value_numbers_to_invalidate.iter() {
+                                // clear off existence of the value number, it's not usable anymore
+                                if let Some(expression_hash) =
+                                    value_number_to_expression.remove(value_number)
+                                {
+                                    expression_hash_to_value_number.remove(&expression_hash);
+                                }
+                                // technically since we erase the expression hash,
+                                // we'll never hit the invalid value number and use it in
+                                // value_number_to_variable to perform CSE,
+                                // but just to be safe we eliminate it altogether
+                                value_number_to_variable.remove(value_number);
+                            }
+                            value_numbers_to_invalidate.clear();
                         }
                     }
                 }
