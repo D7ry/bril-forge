@@ -244,3 +244,17 @@ following, local dead-store managed to eliminate all the dead stores.
     print va;
 }
 ```
+
+However, for cases that are slightly more complex, local dead-store is not sufficient:
+```bril
+@main() {
+    va: int = const 1; # dead, but cannot eliminate
+    vb: int = const 2;
+.done
+    print vb;
+}
+```
+For the above case, `va` is clearly a result of dead-store, but the pass cannot make assumption to
+the use chain of `va` (as there's no use chain). Need a defuse chain to optimize away it.
+
+## Local Value Numbering
