@@ -39,6 +39,8 @@ fn main() {
     // read program
     let mut program: Program = ast::read_from_pipe();
 
+    // program.dump();
+    // println!("after: \n");
     // dispatch passes as specified from stdin
     for arg in env::args().skip(1) {
         let pass = dispatch_table.get(&*arg);
@@ -53,6 +55,7 @@ fn main() {
         }
     }
 
+    // program.dump();
 
     program.dump_json(); // json is piped out to the output
 }

@@ -119,6 +119,14 @@ pub enum Type {
     Pointer { ptr: String },
     // other wrapper types?
 }
+impl ToString for Type {
+    fn to_string(&self) -> String {
+        match self {
+            Type::Primitive(s) => s.clone(),
+            Type::Pointer { ptr } => format!("ptr<{}>", ptr),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
@@ -386,6 +394,44 @@ impl OpcodeInstruction {
     // to lhs
     pub fn is_assignment_inst(&self) -> bool {
         self.get_dest().is_some()
+    }
+    // TODO: this has to go away need better granularity for OpcodeInstruction
+    pub fn get_type(&self) -> Option<Type> {
+        match self {
+            OpcodeInstruction::Const { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Alloc { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Call { typ, .. } => typ.clone(),
+            OpcodeInstruction::Print { .. } => None,
+            OpcodeInstruction::Free { .. } => None,
+            OpcodeInstruction::Ret { .. } => None,
+            OpcodeInstruction::Id { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Store { .. } => None,
+            OpcodeInstruction::Ptradd { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Br { .. } => None,
+            OpcodeInstruction::Or { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Add { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Sub { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Div { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Mul { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FAdd { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FSub { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FDiv { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FMul { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Eq { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Gt { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Ge { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Lt { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Le { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FEq { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FGt { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FGe { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FLt { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::FLe { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::And { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Not { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Load { typ, .. } => Some(typ.clone()),
+            OpcodeInstruction::Jmp { .. } => None,
+        }
     }
     pub fn get_dest(&self) -> Option<String> {
         match self {
