@@ -36,12 +36,15 @@ impl Program {
 #[derive(Debug)]
 pub struct BasicBlock {
     pub instrs: Vec<Instruction>,
-    pub in_label: Option<String> // label which other bb's use to jump in to this bb
+    pub in_label: Option<String>, // label which other bb's use to jump in to this bb
 }
 
 impl BasicBlock {
     pub fn new() -> BasicBlock {
-        BasicBlock { instrs: Vec::new(), in_label: None}
+        BasicBlock {
+            instrs: Vec::new(),
+            in_label: None,
+        }
     }
 }
 
@@ -136,7 +139,7 @@ pub enum OpcodeInstruction {
         dest: String,
         #[serde(rename = "type")]
         typ: Type,
-        value: Value,
+        value: Value, // can be `int`, `bool`, etc...
     },
     Alloc {
         args: Vec<String>,
@@ -348,8 +351,7 @@ impl Instruction {
                 | OpcodeInstruction::Ret { .. }
                 | OpcodeInstruction::Store { .. }
                 | OpcodeInstruction::Alloc { .. }
-                | OpcodeInstruction::Free { .. }
-                => false,
+                | OpcodeInstruction::Free { .. } => false,
                 _ => {
                     if self.is_control_inst() {
                         false
@@ -380,6 +382,11 @@ impl Instruction {
 }
 
 impl OpcodeInstruction {
+    // whether the instruction is asssigning some value on rhs expr
+    // to lhs
+    pub fn is_assignment_inst(&self) -> bool {
+        self.get_dest().is_some()
+    }
     pub fn get_dest(&self) -> Option<String> {
         match self {
             OpcodeInstruction::Const { dest, .. }
