@@ -372,7 +372,7 @@ impl Instruction {
 
     pub fn get_result(&self) -> Option<String> {
         match self {
-            Instruction::Opcode(Inst) => Inst.get_result(),
+            Instruction::Opcode(Inst) => Inst.get_dest(),
             Instruction::Label { label } => Some(label.clone()),
             Instruction::Nop { .. } => Option::None,
         }
@@ -380,7 +380,7 @@ impl Instruction {
 }
 
 impl OpcodeInstruction {
-    pub fn get_result(&self) -> Option<String> {
+    pub fn get_dest(&self) -> Option<String> {
         match self {
             OpcodeInstruction::Const { dest, .. }
             | OpcodeInstruction::Alloc { dest, .. }
