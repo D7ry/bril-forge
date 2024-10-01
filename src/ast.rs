@@ -37,6 +37,8 @@ impl Program {
 pub struct BasicBlock {
     pub instrs: Vec<Instruction>,
     pub in_label: Option<String>, // label which other bb's use to jump in to this bb
+    pub in_bb_indices: Vec<i32>,
+    pub out_bb_indices: Vec<i32>,
 }
 
 impl BasicBlock {
@@ -44,6 +46,8 @@ impl BasicBlock {
         BasicBlock {
             instrs: Vec::new(),
             in_label: None,
+            in_bb_indices: Vec::new(),
+            out_bb_indices: Vec::new(),
         }
     }
 }

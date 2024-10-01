@@ -2,16 +2,15 @@ use crate::ast;
 use ast::*;
 use std::collections::HashMap;
 
-
 #[derive(Clone)]
-struct ConstantPropState {
+struct ConstantState {
     constant_values: HashMap<String, serde_json::Value>, // variable identifier -> constant value
 }
 
 // perform constant prop on a BB
 // var_state: contexual information to the BB
 // returns whether constant prop changes anything, and a new constant prop state
-fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantPropState) -> (bool, ConstantPropState) {
+fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, ConstantState) {
     let mut changed: bool = false;
     let mut ctx = ctx.clone();
 
@@ -38,15 +37,16 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantPropState) -> (bool, C
                 }
 
                 // replace inst variable uses with constants
-                if let Some(args) = opcode_inst.get_args(){
+                if let Some(args) = opcode_inst.get_args() {
+                    // if all args are constants, replace inst with an const inst
                     for arg in args.iter_mut() {
-                        // if argument has constant value, replace arg with string version of const
                         if let Some(const_val) = ctx.constant_values.get(arg) {
-                            arg.clear();
-                            arg.push_str(&const_val.to_string());
+                            // FIXME: implement
                             changed = true;
                         }
                     }
+                    // dest of inst is also a constant
+
                 }
             }
             _ => {}
@@ -55,6 +55,7 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantPropState) -> (bool, C
 
     (changed, ctx)
 }
+
 
 // constant propagation that operates on a function scope
 fn fn_constant_prop(function: &mut Function) -> bool {
