@@ -518,4 +518,49 @@ impl OpcodeInstruction {
             OpcodeInstruction::Jmp { labels } => labels.to_vec(),
         }
     }
+
+    // returns mutable reference to function arguments
+    pub fn get_args(&mut self) -> Option<&mut Vec<String>> {
+        match self {
+            OpcodeInstruction::Alloc { args, .. }
+            | OpcodeInstruction::Call {
+                args: Some(args), ..
+            }
+            | OpcodeInstruction::Print { args }
+            | OpcodeInstruction::Free { args }
+            | OpcodeInstruction::Ret { args }
+            | OpcodeInstruction::Id { args, .. }
+            | OpcodeInstruction::Store { args }
+            | OpcodeInstruction::Ptradd { args, .. }
+            | OpcodeInstruction::Br { args, .. }
+            | OpcodeInstruction::Or { args, .. }
+            | OpcodeInstruction::Add { args, .. }
+            | OpcodeInstruction::Sub { args, .. }
+            | OpcodeInstruction::Div { args, .. }
+            | OpcodeInstruction::Mul { args, .. }
+            | OpcodeInstruction::FAdd { args, .. }
+            | OpcodeInstruction::FSub { args, .. }
+            | OpcodeInstruction::FDiv { args, .. }
+            | OpcodeInstruction::FMul { args, .. }
+            | OpcodeInstruction::Eq { args, .. }
+            | OpcodeInstruction::Gt { args, .. }
+            | OpcodeInstruction::Ge { args, .. }
+            | OpcodeInstruction::Lt { args, .. }
+            | OpcodeInstruction::Le { args, .. }
+            | OpcodeInstruction::FEq { args, .. }
+            | OpcodeInstruction::FGt { args, .. }
+            | OpcodeInstruction::FGe { args, .. }
+            | OpcodeInstruction::FLt { args, .. }
+            | OpcodeInstruction::FLe { args, .. }
+            | OpcodeInstruction::And { args, .. }
+            | OpcodeInstruction::Not { args, .. }
+            | OpcodeInstruction::Load { args, .. } => Some(args),
+
+            // Handle the Call variant separately when `args` is None
+            OpcodeInstruction::Call { args: None, .. } => None,
+
+            // Variants without an `args` field
+            _ => None,
+        }
+    }
 }
