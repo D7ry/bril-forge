@@ -38,15 +38,41 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
 
                 // replace inst variable uses with constants
                 if let Some(args) = opcode_inst.get_args() {
-                    // if all args are constants, replace inst with an const inst
+                    let mut all_args_constants: bool = true;
+                    let mut arg_values: Vec<&serde_json::Value> = Vec::new();
                     for arg in args.iter_mut() {
-                        if let Some(const_val) = ctx.constant_values.get(arg) {
-                            // FIXME: implement
-                            changed = true;
+                        if let Some(value) = ctx.constant_values.get(arg) {
+                            arg_values.push(value);
+                        } else {
+                            all_args_constants = false;
+                            break;
                         }
                     }
-                    // dest of inst is also a constant
-
+                    // if all args are constants, replace inst with an const inst
+                    if all_args_constants {
+                        let evaluated_const_value: Option<serde_json::Value>;
+                        match opcode_inst {
+                            OpcodeInstruction::Add { .. } => {
+                                let mut const_value: i64 = 0;
+                                // accumulate arg values
+                                for val in arg_values {
+                                    const_value += val.as_i64().unwrap();
+                                }
+                                evaluated_const_value = Some(const_value.into());
+                            }
+                            _ => evaluated_const_value = Option::None,
+                        }
+                        if let Some(value) = evaluated_const_value {
+                            if let Some(dest) = opcode_inst.get_dest() {
+                                if let Some(typ) = opcode_inst.get_type() {
+                                    // construct new const value
+                                    let const_inst = OpcodeInstruction::Const { dest, typ, value };
+                                    // write back
+                                    *opcode_inst = const_inst;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             _ => {}
@@ -56,13 +82,26 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
     (changed, ctx)
 }
 
-
 // constant propagation that operates on a function scope
 fn fn_constant_prop(function: &mut Function) -> bool {
+    let empty_state : ConstantState = ConstantState{constant_values : HashMap::new()};
+
     let mut changed: bool = false;
 
     let mut bbs = function.get_basic_blocks();
-    for bb in bbs.iter_mut() {}
+    for bb in bbs.iter_mut() {
+        let local_constant_prop_res = local_constant_prop(bb, &empty_state);
+        if local_constant_prop_res.0 {
+            changed = true;
+        }
+    }
+
+    // bb has changed, flush bb's instrs back to function
+    function.instrs.clear();
+    for basic_block in bbs.iter_mut() { // note here we move all instrs in bb back to function, bbs
+                                        // are unusable from this point on.
+        function.instrs.append(&mut basic_block.instrs); 
+    }
 
     changed
 }
