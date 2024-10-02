@@ -21,19 +21,24 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
                 // update constant states
                 // insert new constants
                 match opcode_inst {
+                    // constant values gets recoreded into the value table
                     OpcodeInstruction::Const { dest, typ, value } => {
                         // TODO: add const prop for other types
                         if value.is_number() {
                             ctx.constant_values.insert(dest.clone(), value.clone());
+                            // println!("{} is constant: {}", dest, value);
                         }
                     }
-                    _ => {}
-                }
-                // remove existing constants if the inst changes value
-                // TODO: can we do better here? maybe some instructions do self-assignment, or + 0
-                // maybe this is better handled with LVN?
-                if let Some(dest) = opcode_inst.get_dest() {
-                    ctx.constant_values.remove(&dest);
+                    // none-const values, when re-assigned, gets removed from value table.
+                    _ => {
+                        // remove existing constants if the inst changes value
+                        // TODO: can we do better here? maybe some instructions do self-assignment, or + 0
+                        // maybe this is better handled with LVN?
+                        if let Some(dest) = opcode_inst.get_dest() {
+                            // println!("removing {} as constant due to re-assignment", dest);
+                            ctx.constant_values.remove(&dest);
+                        }
+                    }
                 }
 
                 // replace inst variable uses with constants
@@ -65,6 +70,9 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
                         if let Some(value) = evaluated_const_value {
                             if let Some(dest) = opcode_inst.get_dest() {
                                 if let Some(typ) = opcode_inst.get_type() {
+                                    // populate const table with new const
+                                    ctx.constant_values.insert(dest.clone(), value.clone());
+
                                     // construct new const value
                                     let const_inst = OpcodeInstruction::Const { dest, typ, value };
                                     // write back
@@ -84,7 +92,9 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
 
 // constant propagation that operates on a function scope
 fn fn_constant_prop(function: &mut Function) -> bool {
-    let empty_state : ConstantState = ConstantState{constant_values : HashMap::new()};
+    let empty_state: ConstantState = ConstantState {
+        constant_values: HashMap::new(),
+    };
 
     let mut changed: bool = false;
 
@@ -98,9 +108,10 @@ fn fn_constant_prop(function: &mut Function) -> bool {
 
     // bb has changed, flush bb's instrs back to function
     function.instrs.clear();
-    for basic_block in bbs.iter_mut() { // note here we move all instrs in bb back to function, bbs
-                                        // are unusable from this point on.
-        function.instrs.append(&mut basic_block.instrs); 
+    for basic_block in bbs.iter_mut() {
+        // note here we move all instrs in bb back to function, bbs
+        // are unusable from this point on.
+        function.instrs.append(&mut basic_block.instrs);
     }
 
     changed
