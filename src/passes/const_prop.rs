@@ -115,6 +115,7 @@ fn local_constant_prop(bb: &mut BasicBlock, mut ctx: ConstantState) -> (bool, Co
 // 2. all of the bb's parents that have the `x` constant state need to have `x` the same const
 //    value.
 fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {
+    // println!("Joining constant states of {} states", states.len());
     let mut joined_state: ConstantState = ConstantState {
         constant_values: HashMap::new(),
     };
@@ -131,12 +132,16 @@ fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {
                 if entry.1 == *val {
                     entry.0 += 1; // increment counter
                 }
+            } else {
+                // println!("here");
+                const_vals.insert(key.clone(), (1, val.clone()));
             }
         }
     }
 
     // populate joined_state
     for elem in const_vals {
+        // println!("checking const val {}", elem.0);
         if elem.1.0 != states.len() {
             continue;
         }
@@ -182,14 +187,16 @@ fn fn_constant_prop(function: &mut Function) -> bool {
         for parent_idx in bb.in_bb_indices.iter() {
             parent_states.push(bb_consts_info.get(*parent_idx).unwrap());
         }
+        // println!("parent states: {}", parent_states.len());
         let joined_state = join_constant_states(parent_states);
         let local_constant_prop_res = local_constant_prop(bb, joined_state);
+        // update constant state
+        // note here, we update constant state no matter whether there is change.
+        let const_state = bb_consts_info.get_mut(bb_idx).unwrap();
+        *const_state = local_constant_prop_res.1;
         if local_constant_prop_res.0 == true {
             // changed
             changed = true;
-            // update constant state
-            let const_state = bb_consts_info.get_mut(bb_idx).unwrap();
-            *const_state = local_constant_prop_res.1;
             // push all successors of this bb back to the worklist
             for successor in bb.out_bb_indices.iter() {
                 if !in_work_list.contains(successor) {
