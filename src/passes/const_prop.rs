@@ -109,7 +109,25 @@ fn local_constant_prop(bb: &mut BasicBlock, mut ctx: ConstantState) -> (bool, Co
     (changed, ctx)
 }
 
-fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {}
+fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {
+    let mut joined_state : ConstantState = ConstantState{constant_values: HashMap::new()};
+
+    // count occurance of constant vals, # occurance must be equal to states.len() i.e.
+    // the constant has to exist in all of its parents
+    
+    // variables -> <# of occurance in parent states, last occurence's value>
+    let mut const_vals : HashMap<String, (usize, serde_json::Value)> = HashMap::new();
+
+    for state in states {
+        for (key, val) in state.constant_values.iter() {
+            if joined_state.constant_values.contains_key(key) {
+
+            }
+        }
+    }
+
+    joined_state
+}
 
 // constant propagation that operates on a function scope
 fn fn_constant_prop(function: &mut Function) -> bool {
@@ -167,12 +185,14 @@ fn fn_constant_prop(function: &mut Function) -> bool {
         }
     }
 
-    // bb has changed, flush bb's instrs back to function
-    function.instrs.clear();
-    for basic_block in bbs.iter_mut() {
-        // note here we move all instrs in bb back to function, bbs
-        // are unusable from this point on.
-        function.instrs.append(&mut basic_block.instrs);
+    if changed {
+        // bb has changed, flush bb's instrs back to function
+        function.instrs.clear();
+        for basic_block in bbs.iter_mut() {
+            // note here we move all instrs in bb back to function, bbs
+            // are unusable from this point on.
+            function.instrs.append(&mut basic_block.instrs);
+        }
     }
 
     changed

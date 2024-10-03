@@ -74,8 +74,8 @@ that checks for use list, could turn the above further into:
 `state` becomes actually useful in global constant prop. In local constant prop, we trivially 
 make the state empty -- no information is available at the beginning of the analysis. For global, 
 before calling `const_prop()` on a bb, we join the states passed off from the all of bb's parents.
-The join function simply looks at all key-value pairs from both states, and keeps the pairs where
-both key and value are identical -- the constant values are the same from both parents to the bb.
+The join function simply looks at all key-value pairs from both states. For the a constant value to
+carry on, the value has to exist in all of the parent states.
 
 For global constant prop, we also iterate until convergence; to keep track of the state changes,
 `fn const_prop(bb, state)` now returns a tuple of `bool, state` -- indicating whether the state has
