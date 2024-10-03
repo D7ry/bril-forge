@@ -59,9 +59,29 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
                         match opcode_inst {
                             OpcodeInstruction::Add { .. } => {
                                 let mut const_value: i64 = 0;
-                                // accumulate arg values
                                 for val in arg_values {
                                     const_value += val.as_i64().unwrap();
+                                }
+                                evaluated_const_value = Some(const_value.into());
+                            }
+                            OpcodeInstruction::FAdd { .. } => {
+                                let mut const_value: f64 = 0.0;
+                                for val in arg_values {
+                                    const_value += val.as_f64().unwrap();
+                                }
+                                evaluated_const_value = Some(const_value.into());
+                            }
+                            OpcodeInstruction::Mul { .. } => {
+                                let mut const_value: i64= 1;
+                                for val in arg_values {
+                                    const_value *= val.as_i64().unwrap();
+                                }
+                                evaluated_const_value = Some(const_value.into());
+                            }
+                            OpcodeInstruction::FMul { .. } => {
+                                let mut const_value: f64 = 1.0;
+                                for val in arg_values {
+                                    const_value *= val.as_f64().unwrap();
                                 }
                                 evaluated_const_value = Some(const_value.into());
                             }

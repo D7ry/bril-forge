@@ -87,6 +87,8 @@ the new state is to be evaluated on all of the bb's successors. We use a worklis
 bbs that needs to be re-const-prop'd, and a table of `<bb, state>` to memoize const states, in case
 the re-evaluation of one bb requires constant states of multiple parents.
 
+#### Global Const Prop and LVN
+
 Global constant prop cannot entirely replace LVN thanks to LVN's CSE effect. CSE optimizes away
 redundant insts where some variables aren't known to be sure to be constant; take the following as
 an example:
