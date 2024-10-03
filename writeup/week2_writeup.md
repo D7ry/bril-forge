@@ -121,6 +121,36 @@ while let Some(bb_idx) = work_list.pop_front() {
 }
 ```
 
+And the following is a sample optimization:
+before:
+```
+@main() {
+    va: int = const 1;
+    vb: int = const 2;
+.firstb:
+    vc: int = add va vb;
+.secondb:
+    vd: int = const 5;
+    ve: int = add vc vd;
+    print ve;
+}
+```
+after:
+```
+@main() {
+    va: int = const 1;
+    vb: int = const 2;
+.firstb:
+    vc: int = const 3;
+.secondb:
+    vd: int = const 5;
+    ve: int = const 8;
+    print ve;
+}
+```
+The after case witnesses two iterative constant prop, where `va` and `vb`'s constness propagates
+to `vc`, which then propagates to `ve`
+
 #### Global Const Prop and LVN
 
 Global constant prop cannot entirely replace LVN thanks to LVN's CSE effect. CSE optimizes away
