@@ -109,21 +109,40 @@ fn local_constant_prop(bb: &mut BasicBlock, mut ctx: ConstantState) -> (bool, Co
     (changed, ctx)
 }
 
+// join constant states. for a constant value of variable `x` to carry on, the following must
+// satisfy:
+// 1. all of the bb's parents have a constate state of variable `x`
+// 2. all of the bb's parents that have the `x` constant state need to have `x` the same const
+//    value.
 fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {
-    let mut joined_state : ConstantState = ConstantState{constant_values: HashMap::new()};
+    let mut joined_state: ConstantState = ConstantState {
+        constant_values: HashMap::new(),
+    };
 
     // count occurance of constant vals, # occurance must be equal to states.len() i.e.
     // the constant has to exist in all of its parents
-    
-    // variables -> <# of occurance in parent states, last occurence's value>
-    let mut const_vals : HashMap<String, (usize, serde_json::Value)> = HashMap::new();
 
-    for state in states {
+    // variables -> <# of occurance in parent states, first occurence's value>
+    let mut const_vals: HashMap<String, (usize, serde_json::Value)> = HashMap::new();
+
+    for state in states.iter() {
         for (key, val) in state.constant_values.iter() {
-            if joined_state.constant_values.contains_key(key) {
-
+            if let Some(entry) = const_vals.get_mut(key) {
+                if entry.1 == *val {
+                    entry.0 += 1; // increment counter
+                }
             }
         }
+    }
+
+    // populate joined_state
+    for elem in const_vals {
+        if elem.1.0 != states.len() {
+            continue;
+        }
+        // the same const value of such var has occured for states.len() times,
+        // and all of values are equal. Can join the state.
+        joined_state.constant_values.insert(elem.0, elem.1.1);
     }
 
     joined_state
@@ -131,10 +150,6 @@ fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {
 
 // constant propagation that operates on a function scope
 fn fn_constant_prop(function: &mut Function) -> bool {
-    let empty_state: ConstantState = ConstantState {
-        constant_values: HashMap::new(),
-    };
-
     let mut changed: bool = false;
     let mut bbs = function.get_basic_blocks();
 
