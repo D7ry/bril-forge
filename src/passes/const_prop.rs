@@ -191,7 +191,10 @@ fn fn_constant_prop(function: &mut Function) -> bool {
         let joined_state = join_constant_states(parent_states);
         let local_constant_prop_res = local_constant_prop(bb, joined_state);
         // update constant state
-        // note here, we update constant state no matter whether there is change.
+        // here, we update constant state no matter whether there is change.
+        // TODO: add const state hashing, this serves a better indicator than "changed"
+        // flag of local const prop call, which is what we really care about: whether 
+        // a bb's const state changes!!
         let const_state = bb_consts_info.get_mut(bb_idx).unwrap();
         *const_state = local_constant_prop_res.1;
         if local_constant_prop_res.0 == true {

@@ -151,6 +151,16 @@ after:
 The after case witnesses two iterative constant prop, where `va` and `vb`'s constness propagates
 to `vc`, which then propagates to `ve`
 
+Similar to local const prop, a trivial DCE right after constant prop shows its true power:
+```
+@main() {
+.firstb:
+.secondb:
+    ve: int = const 8;
+    print ve;
+}
+```
+
 #### Global Const Prop and LVN
 
 Global constant prop cannot entirely replace LVN thanks to LVN's CSE effect. CSE optimizes away
