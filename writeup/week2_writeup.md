@@ -87,6 +87,11 @@ the new state is to be evaluated on all of the bb's successors. We use a worklis
 bbs that needs to be re-const-prop'd, and a table of `<bb, state>` to memoize const states, in case
 the re-evaluation of one bb requires constant states of multiple parents.
 
+To expedite BB lookup, basic block construction algorithm has been modified that, for each bb, bb's
+in and out labels, as well as indices to the corresponding in and out bbs in the bb array would be
+returned. (Had a lot of issues implementing this due to the limited information on bril's invariants,
+things like unnamed BBs and such. you really can't take something as elegant as SPIR-V for granted).
+
 #### Global Const Prop and LVN
 
 Global constant prop cannot entirely replace LVN thanks to LVN's CSE effect. CSE optimizes away

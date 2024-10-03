@@ -1,6 +1,6 @@
 use crate::ast;
 use ast::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Clone)]
 struct ConstantState {
@@ -10,9 +10,8 @@ struct ConstantState {
 // perform constant prop on a BB
 // var_state: contexual information to the BB
 // returns whether constant prop changes anything, and a new constant prop state
-fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, ConstantState) {
+fn local_constant_prop(bb: &mut BasicBlock, mut ctx: ConstantState) -> (bool, ConstantState) {
     let mut changed: bool = false;
-    let mut ctx = ctx.clone();
 
     // we mutate the constant states as we go through the insts
     for inst in bb.instrs.iter_mut() {
@@ -22,7 +21,7 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
                 // insert new constants
                 match opcode_inst {
                     // constant values gets recoreded into the value table
-                    OpcodeInstruction::Const { dest, typ, value } => {
+                    OpcodeInstruction::Const { dest, value, .. } => {
                         // TODO: add const prop for other types
                         if value.is_number() {
                             ctx.constant_values.insert(dest.clone(), value.clone());
@@ -72,7 +71,7 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
                                 evaluated_const_value = Some(const_value.into());
                             }
                             OpcodeInstruction::Mul { .. } => {
-                                let mut const_value: i64= 1;
+                                let mut const_value: i64 = 1;
                                 for val in arg_values {
                                     const_value *= val.as_i64().unwrap();
                                 }
@@ -90,9 +89,9 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
                         if let Some(value) = evaluated_const_value {
                             if let Some(dest) = opcode_inst.get_dest() {
                                 if let Some(typ) = opcode_inst.get_type() {
+                                    changed = true;
                                     // populate const table with new const
                                     ctx.constant_values.insert(dest.clone(), value.clone());
-
                                     // construct new const value
                                     let const_inst = OpcodeInstruction::Const { dest, typ, value };
                                     // write back
@@ -110,6 +109,8 @@ fn local_constant_prop(bb: &mut BasicBlock, ctx: &ConstantState) -> (bool, Const
     (changed, ctx)
 }
 
+fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {}
+
 // constant propagation that operates on a function scope
 fn fn_constant_prop(function: &mut Function) -> bool {
     let empty_state: ConstantState = ConstantState {
@@ -117,12 +118,52 @@ fn fn_constant_prop(function: &mut Function) -> bool {
     };
 
     let mut changed: bool = false;
-
     let mut bbs = function.get_basic_blocks();
-    for bb in bbs.iter_mut() {
-        let local_constant_prop_res = local_constant_prop(bb, &empty_state);
-        if local_constant_prop_res.0 {
+
+    // each index corresponds to one bb
+    let mut bb_consts_info: Vec<ConstantState> = Vec::new();
+    bb_consts_info.resize(
+        bbs.len(),
+        ConstantState {
+            constant_values: HashMap::new(),
+        },
+    );
+
+    // worklist of bb indices
+    let mut work_list: VecDeque<usize> = VecDeque::new();
+    let mut in_work_list: HashSet<usize> = HashSet::new(); // indices already in worklist to
+                                                           // prevent repetition
+
+    for i in 0..bbs.len() {
+        work_list.push_back(i);
+        in_work_list.insert(i);
+    }
+
+    // iterate until convergence.
+    while let Some(bb_idx) = work_list.pop_front() {
+        in_work_list.remove(&bb_idx); // no longer in worklist
+                                      //
+        let bb = bbs.get_mut(bb_idx).unwrap();
+        // join all of bb's parents' constant state to figure out bb's initial state
+        let mut parent_states: Vec<&ConstantState> = Vec::new();
+        for parent_idx in bb.in_bb_indices.iter() {
+            parent_states.push(bb_consts_info.get(*parent_idx).unwrap());
+        }
+        let joined_state = join_constant_states(parent_states);
+        let local_constant_prop_res = local_constant_prop(bb, joined_state);
+        if local_constant_prop_res.0 == true {
+            // changed
             changed = true;
+            // update constant state
+            let const_state = bb_consts_info.get_mut(bb_idx).unwrap();
+            *const_state = local_constant_prop_res.1;
+            // push all successors of this bb back to the worklist
+            for successor in bb.out_bb_indices.iter() {
+                if !in_work_list.contains(successor) {
+                    in_work_list.insert(*successor);
+                    work_list.push_back(*successor);
+                }
+            }
         }
     }
 
