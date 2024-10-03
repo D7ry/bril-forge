@@ -415,6 +415,7 @@ impl Instruction {
     // whether a instruction has "sideeffects"
     pub fn has_no_side_effects(&self) -> bool {
         match self {
+            Instruction::Label { .. } => false,
             Instruction::Opcode(Inst) => match Inst {
                 OpcodeInstruction::Print { .. }
                 | OpcodeInstruction::Call { .. }
