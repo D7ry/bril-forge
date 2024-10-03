@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, Read, Write};
+use std::collections::hash_set::HashSet;
 
 // reads a program from a pipe, if not successful panik
 pub fn read_from_pipe() -> Program {
@@ -36,18 +37,20 @@ impl Program {
 #[derive(Debug)]
 pub struct BasicBlock {
     pub instrs: Vec<Instruction>,
-    pub in_label: Option<String>, // label which other bb's use to jump in to this bb
-    pub in_bb_indices: Vec<i32>,
-    pub out_bb_indices: Vec<i32>,
+    pub label: Option<String>, // label which other bb's use to jump in to this bb
+    pub out_labels: Vec<String>, // label which this bb is able to jump to
+    pub in_bb_indices: HashSet<usize>, // indices into the function's bb that jumps to this bb
+    pub out_bb_indices: HashSet<usize>, // indices into the function's bb that this bb jumps out to
 }
 
 impl BasicBlock {
     pub fn new() -> BasicBlock {
         BasicBlock {
             instrs: Vec::new(),
-            in_label: None,
-            in_bb_indices: Vec::new(),
-            out_bb_indices: Vec::new(),
+            label: None,
+            out_labels: Vec::new(),
+            in_bb_indices: HashSet::new(),
+            out_bb_indices: HashSet::new(),
         }
     }
 }
@@ -71,29 +74,63 @@ impl Function {
         let mut ret: Vec<BasicBlock> = Vec::new();
         let mut current_block = BasicBlock::new();
 
+        // <basic block's in label, indices to `ret` of the corresponding basic block
+        let mut bb_labels_to_indices: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+
         for inst in self.instrs.iter() {
             match (inst.is_label(), inst.is_control_inst()) {
+                (true, true) => {
+                    panic!("instruction cannot be both a label and a control instruction!");
+                }
                 (true, _) => {
                     // only start a new block if the label would
                     // otherwise break the current BB's invariant
                     if !current_block.instrs.is_empty() {
+                        match inst {
+                            Instruction::Label { label } => {
+                                // the block jumps to this label and gg
+                                current_block.out_labels.push(label.clone());
+                            }
+                            _ => {
+                                panic!("instruction has to be label to reach here");
+                            }
+                        }
+                        if let Some(block_label) = current_block.label.clone() {
+                            bb_labels_to_indices.insert(block_label, ret.len());
+                        }
                         ret.push(current_block);
                         current_block = BasicBlock::new();
+                        current_block.in_bb_indices.insert(ret.len() - 1); // the previous bb is
+                                                                           // the bb's in bb
                     }
                     // push label inst
                     current_block.instrs.push(inst.clone());
-                    current_block.in_label = inst.get_result(); // mark in label
+                    current_block.label = inst.get_result(); // mark in label
                 }
                 (_, true) => {
                     // is control
                     // push control inst to current block
                     current_block.instrs.push(inst.clone());
+                    match inst {
+                        Instruction::Opcode(inst) => match inst {
+                            OpcodeInstruction::Jmp { labels } => {
+                                current_block.out_labels = labels.clone();
+                            }
+                            OpcodeInstruction::Br { labels, .. } => {
+                                current_block.out_labels = labels.clone();
+                            }
+                            _ => {}
+                        },
+                        _ => {}
+                    }
+                    // shouldn't happen but just in case
+                    if let Some(label) = current_block.label.clone() {
+                        bb_labels_to_indices.insert(label, ret.len());
+                    }
                     ret.push(current_block);
                     // end current block
                     current_block = BasicBlock::new();
-                }
-                (true, true) => {
-                    panic!("instruction cannot be both a label and a control instruction!");
                 }
                 _ => {
                     // For other instructions, add to the current block
@@ -103,6 +140,27 @@ impl Function {
         }
         if !current_block.instrs.is_empty() {
             ret.push(current_block);
+        }
+
+        // Step 1: Collect indices
+        let mut parent_to_child_indices : Vec<(usize, usize)> = Vec::new();
+
+        for (bb_index, bb) in ret.iter_mut().enumerate() {
+            for label in &bb.out_labels {
+                if let Some(successor_index) = bb_labels_to_indices.get(label) {
+                    parent_to_child_indices.push((bb_index, *successor_index));
+                }
+            }
+        }
+
+        // Step 2: Mutate using collected indices
+        for (parent_index, child_index) in parent_to_child_indices {
+            if let Some(bb) = ret.get_mut(parent_index) {
+                bb.out_bb_indices.insert(child_index);
+            }
+            if let Some(bb) = ret.get_mut(child_index) {
+                bb.in_bb_indices.insert(parent_index);
+            }
         }
 
         ret
