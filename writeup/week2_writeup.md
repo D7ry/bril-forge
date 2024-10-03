@@ -4,7 +4,7 @@ All optimization passes are verified with bril programs in `benchmarks` to ensur
 
 ## Global Constant Prop & Folding
 
-Implementation source: `constant_prop.rs`
+Implementation source: [`constant_prop.rs`](../src/passes/const_prop.rs)
 
 One interesting detail about bril is the lack of constant to arithmetic operations i.e. all operands
 to arithmetic operations are variables. This forces us to couple constant prop and folding into one pass,
@@ -99,7 +99,6 @@ but the bb's successor. In this case, only tracking inst changes does not propag
 did something similar to NVIDIA's OpenGL compiler but that was in C, rust keeps complaining about my 
 hashing function so I end up giving up lol)
 
-The core of global const prop algo: 
 ```rust
 while let Some(bb_idx) = work_list.pop_front() {
     in_work_list.remove(&bb_idx); // no longer in worklist
