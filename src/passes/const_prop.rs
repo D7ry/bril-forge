@@ -133,7 +133,6 @@ fn join_constant_states(states: Vec<&ConstantState>) -> ConstantState {
                     entry.0 += 1; // increment counter
                 }
             } else {
-                // println!("here");
                 const_vals.insert(key.clone(), (1, val.clone()));
             }
         }
@@ -193,8 +192,9 @@ fn fn_constant_prop(function: &mut Function) -> bool {
         // update constant state
         // here, we update constant state no matter whether there is change.
         // TODO: add const state hashing, this serves a better indicator than "changed"
-        // flag of local const prop call, which is what we really care about: whether 
-        // a bb's const state changes!!
+        // flag of local const prop call, which is what we really care about. this will
+        // allow state changes from one bb's parents to be propagated to its children,
+        // whether if the bb's instr changes.
         let const_state = bb_consts_info.get_mut(bb_idx).unwrap();
         *const_state = local_constant_prop_res.1;
         if local_constant_prop_res.0 == true {

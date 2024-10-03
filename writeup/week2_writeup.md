@@ -92,6 +92,13 @@ in and out labels, as well as indices to the corresponding in and out bbs in the
 returned. (Had a lot of issues implementing this due to the limited information on bril's invariants,
 things like unnamed BBs and such. you really can't take something as elegant as SPIR-V for granted).
 
+To make it more efficient, we can optionally hash the constant states s.t. we push a bb's successors
+to the worklist only when its constant state changes(as opposed to its instr content). This would be
+useful where we have constant states changes from both parents of a bb that does not affect the bb,
+but the bb's successor. In this case, only tracking inst changes does not propagate constness. (p.s.
+did something similar to NVIDIA's OpenGL compiler but that was in C, rust keeps complaining about my 
+hashing function so I end up giving up lol)
+
 The core of global const prop algo: 
 ```rust
 while let Some(bb_idx) = work_list.pop_front() {
@@ -100,7 +107,7 @@ while let Some(bb_idx) = work_list.pop_front() {
     // join all of bb's parents' constant state to figure out bb's initial state
     let mut parent_states: Vec<&ConstantState> = Vec::new();
     for parent_idx in bb.in_bb_indices.iter() {
-        parent_states.push(bb_consts_info.get(*parent_idx).unwrap());
+        parent_states.push(bb_consts_states.get(*parent_idx).unwrap());
     }
     let joined_state = join_constant_states(parent_states);
     let local_constant_prop_res = local_constant_prop(bb, joined_state);
