@@ -92,6 +92,35 @@ in and out labels, as well as indices to the corresponding in and out bbs in the
 returned. (Had a lot of issues implementing this due to the limited information on bril's invariants,
 things like unnamed BBs and such. you really can't take something as elegant as SPIR-V for granted).
 
+The core of global const prop algo: 
+```rust
+while let Some(bb_idx) = work_list.pop_front() {
+    in_work_list.remove(&bb_idx); // no longer in worklist
+    let bb = bbs.get_mut(bb_idx).unwrap();
+    // join all of bb's parents' constant state to figure out bb's initial state
+    let mut parent_states: Vec<&ConstantState> = Vec::new();
+    for parent_idx in bb.in_bb_indices.iter() {
+        parent_states.push(bb_consts_info.get(*parent_idx).unwrap());
+    }
+    let joined_state = join_constant_states(parent_states);
+    let local_constant_prop_res = local_constant_prop(bb, joined_state);
+    if local_constant_prop_res.0 == true {
+        // changed
+        changed = true;
+        // update constant state
+        let const_state = bb_consts_info.get_mut(bb_idx).unwrap();
+        *const_state = local_constant_prop_res.1;
+        // push all successors of this bb back to the worklist
+        for successor in bb.out_bb_indices.iter() {
+            if !in_work_list.contains(successor) {
+                in_work_list.insert(*successor);
+                work_list.push_back(*successor);
+            }
+        }
+    }
+}
+```
+
 #### Global Const Prop and LVN
 
 Global constant prop cannot entirely replace LVN thanks to LVN's CSE effect. CSE optimizes away
