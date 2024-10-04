@@ -90,7 +90,7 @@ fn bb_update_liveness(
     }
 
     let mut live_out_without_local_def: Vec<String> = new_state.live_out.clone();
-    live_out_without_local_def.retain(|elem| new_state.defs.contains(elem));
+    live_out_without_local_def.retain(|elem| !new_state.defs.contains(elem));
 
     // FIXME: use hashmap, no time because it's overdue for now
     for elem in live_out_without_local_def.iter() {
@@ -188,7 +188,7 @@ fn global_dce_on_function(function: &mut Function) -> bool {
             &parent_liveness_states,
             &children_liveness_states,
         );
-        
+
         if res.1 {
             // update liveness
             *liveness_states.get_mut(bb_idx).unwrap() = res.0;
@@ -221,8 +221,52 @@ fn global_dce_on_function(function: &mut Function) -> bool {
         }
     }
 
-    // liveness update done, perform dce
+    // block-scope liveness analysis done,
+    // now perform instruction-granularity liveness analysis/DCE
+    for bb_idx in 0..bbs.len() {
+        let bb: &mut BasicBlock = bbs.get_mut(bb_idx).unwrap();
 
+        let live_out: Vec<String> = liveness_states.get(bb_idx).unwrap().live_out.clone();
+        let mut live_out: HashSet<String> = live_out.into_iter().collect();
+
+        let mut insts_to_pop: Vec<usize> = Vec::new();
+
+        // reverse traverse the insts
+        for inst_idx in (0..bb.instrs.len()).rev() {
+            let inst = bb.instrs.get(inst_idx).unwrap();
+            let mut inst_is_dead: bool = !inst.is_meaningful();
+            if let Some(dest) = inst.get_result() {
+                if live_out.contains(&dest) {
+                    inst_is_dead = false;
+                    // this is the latest point where we assign to
+                    // the live_out, we now can safely remove it
+                    live_out.remove(&dest);
+                    // all vars used by the inst are needed
+                    // this gracefully handles self-referential vars as a regular case.
+                    for var_used in inst.get_use_list() {
+                        live_out.insert(var_used);
+                    }
+                }
+            }
+
+            if inst_is_dead {
+                insts_to_pop.push(inst_idx);
+            }
+        }
+
+        changed |= insts_to_pop.len() != 0;
+        for inst_idx in insts_to_pop {
+            bb.instrs.remove(inst_idx);
+        }
+    }
+
+    // flush back on change
+    if changed {
+        function.instrs.clear();
+        for bb in bbs.iter_mut() {
+            function.instrs.append(&mut bb.instrs); 
+        }
+    }
 
     changed
 }
