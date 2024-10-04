@@ -173,7 +173,7 @@ fn global_dce_on_function(function: &mut Function) -> bool {
         let mut children_liveness_states: Vec<&LivenessState> = Vec::new();
         //println!(" has {} parents", bb.in_bb_indices.len());
         for parent_idx in bb.in_bb_indices.iter() {
-            println!("parent {}", parent_idx);
+            // println!("parent {}", parent_idx);
             parent_liveness_states.push(liveness_states.get(*parent_idx).unwrap());
         }
 
@@ -202,7 +202,7 @@ fn global_dce_on_function(function: &mut Function) -> bool {
     }
 
     // debug print
-    if true {
+    if false {
         for i in 0..bbs.len() {
             println!("bb {}'s liveness:", i);
             let liveness = liveness_states.get(i).unwrap();
@@ -248,7 +248,7 @@ fn global_dce_on_function(function: &mut Function) -> bool {
                     }
                 }
             }
-            
+
             if inst.is_meaningful() {
                 inst_is_dead = false;
                 for u in inst.get_use_list() {
@@ -271,7 +271,7 @@ fn global_dce_on_function(function: &mut Function) -> bool {
     if changed {
         function.instrs.clear();
         for bb in bbs.iter_mut() {
-            function.instrs.append(&mut bb.instrs); 
+            function.instrs.append(&mut bb.instrs);
         }
     }
 
