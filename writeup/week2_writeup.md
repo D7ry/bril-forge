@@ -1,4 +1,4 @@
-# Week1 Writeup
+# Week2 Writeup: Global Const Prop && Liveness/Global DCE
 
 All optimization passes are verified with bril programs in `benchmarks` to ensure correctness.
 
@@ -187,3 +187,138 @@ int l = i + j;
 guarantee its constantness -- CSE, however, would optimize `l` into `int l = k`
 
 ## Liveness Analysis & Global DCE
+
+Implementation source: [`live.rs`](../src/passes/live.rs)
+
+### Liveness Analysis
+
+We implement a traditional liveness analysis pass using a worklist and a list of liveness states, 
+one for each bb. We iteratively update all states until closure. We evaluate the def-use list before
+the first iteration.
+
+On top of implementing `get_use()`, we implement `get_meaningful_use()` to achieve strong liveness
+analysis. We do so by only populating the use list with inst whose `has_no_side_effects()` returns
+false -- i.e. insts that pass the following check:
+
+``` rust
+pub fn has_no_side_effects(&self) -> bool {
+    match self {
+        Instruction::Label { .. } => false,
+        Instruction::Opcode(Inst) => match Inst {
+            OpcodeInstruction::Print { .. }
+            | OpcodeInstruction::Call { .. }
+            | OpcodeInstruction::Ret { .. }
+            | OpcodeInstruction::Store { .. }
+            | OpcodeInstruction::Alloc { .. }
+            | OpcodeInstruction::Free { .. } => false,
+            _ => {
+                if self.is_control_inst() {
+                    false
+                } else {
+                    true
+                }
+            }
+        },
+        _ => true,
+    }
+}
+```
+
+this allows us to optimize the following's sample program's liveness of `b1` block:
+```
+@main {
+  a: int = const 2;
+  b: int = id a;
+.b1:
+  e: int = id b;
+  print a;
+}
+```
+
+from {`a`, `b`} to just `a` -- since assignment to `e` does not produce side effects nor affect
+program flow.
+
+### Global DCE
+
+With global strong liveness information, we apply the information to each of the BB. Essentially
+we perform a similar liveness analysis on BB's instruction level -- in this case, the BB's
+instructions form a simple path -- so no complex structures are needed as we only need to traverse
+the BB in reverse to propagate liveness in and out:
+
+```rust
+for bb_idx in 0..bbs.len() {
+    let bb: &mut BasicBlock = bbs.get_mut(bb_idx).unwrap();
+
+    let live_out: Vec<String> = liveness_states.get(bb_idx).unwrap().live_out.clone();
+    let mut live_out: HashSet<String> = live_out.into_iter().collect();
+
+    let mut insts_to_pop: Vec<usize> = Vec::new();
+    // reverse traverse the insts
+    for inst_idx in (0..bb.instrs.len()).rev() {
+        let inst = bb.instrs.get(inst_idx).unwrap();
+        let mut inst_is_dead: bool = true;
+
+        if let Some(dest) = inst.get_result() {
+            if live_out.contains(&dest) {
+                inst_is_dead = false;
+                // this is the latest point where we assign to
+                // the live_out, we now can safely remove it
+                live_out.remove(&dest);
+                // all vars used by the inst are needed
+                // this gracefully handles self-referential vars as a regular case.
+                for var_used in inst.get_use_list() {
+                    live_out.insert(var_used);
+                }
+            }
+        }
+        
+        if inst.is_meaningful() {
+            inst_is_dead = false;
+            for u in inst.get_use_list() {
+                live_out.insert(u);
+            }
+        }
+
+        if inst_is_dead {
+            insts_to_pop.push(inst_idx);
+        }
+    }
+
+    changed |= insts_to_pop.len() != 0;
+    for inst_idx in insts_to_pop {
+        bb.instrs.remove(inst_idx);
+    }
+}
+```
+
+As a simple example, the following program:
+
+```
+@main {
+  a: int = const 2;
+  b: int = id a; # requires a
+  c: bool = eq a a; # requires a
+  d: bool = id c; # requires c
+  a: int = mul c d; # requires c, d
+.b1:
+  e: int = id b; # requires b
+  print a;
+}
+```
+
+gets optimized into the following:
+
+```
+@main {
+  a: int = const 2;
+  c: bool = eq a a; # requires a
+  d: bool = id c; # requires c
+  a: int = mul c d; # requires c, d
+.b1:
+  print a;
+}
+```
+
+The DCE respects variable use by iteratively traverse up the bb's insts, hence `d` `c` and `a` are
+preserved, whereas `e`, being an expression without side-effects, gets eliminated, as well as 
+`b` that `e` depends on.
