@@ -230,11 +230,11 @@ fn global_dce_on_function(function: &mut Function) -> bool {
         let mut live_out: HashSet<String> = live_out.into_iter().collect();
 
         let mut insts_to_pop: Vec<usize> = Vec::new();
-
         // reverse traverse the insts
         for inst_idx in (0..bb.instrs.len()).rev() {
             let inst = bb.instrs.get(inst_idx).unwrap();
-            let mut inst_is_dead: bool = !inst.is_meaningful();
+            let mut inst_is_dead: bool = true;
+
             if let Some(dest) = inst.get_result() {
                 if live_out.contains(&dest) {
                     inst_is_dead = false;
@@ -246,6 +246,13 @@ fn global_dce_on_function(function: &mut Function) -> bool {
                     for var_used in inst.get_use_list() {
                         live_out.insert(var_used);
                     }
+                }
+            }
+            
+            if inst.is_meaningful() {
+                inst_is_dead = false;
+                for u in inst.get_use_list() {
+                    live_out.insert(u);
                 }
             }
 
