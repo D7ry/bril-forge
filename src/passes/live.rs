@@ -10,8 +10,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 struct LivenessState {
     pub live_in: Vec<String>,  // vars that are alive when we enter bb
     pub live_out: Vec<String>, // vars that are alive when we exit bb
-    pub defs: Vec<String>,
-    pub uses: Vec<String>,
+    pub defs: HashSet<String>,
+    pub uses: HashSet<String>,
 }
 
 impl LivenessState {
@@ -19,38 +19,42 @@ impl LivenessState {
         LivenessState {
             live_in: Vec::new(),
             live_out: Vec::new(),
-            defs: Vec::new(),
-            uses: Vec::new(),
+            defs: HashSet::new(),
+            uses: HashSet::new(),
         }
     }
 }
 
-fn get_bb_use_list(bb: &BasicBlock) -> Vec<String> {
-    let mut use_list: Vec<String> = Vec::new();
+fn get_bb_use_list(bb: &BasicBlock) -> HashSet<String> {
+    let mut use_list: HashSet<String> = HashSet::new();
     for inst in bb.instrs.iter() {
         let mut inst_use_list: Vec<String> = inst.get_use_list();
-        use_list.append(&mut inst_use_list);
+        for elem in inst_use_list {
+            use_list.insert(elem);
+        }
     }
     use_list
 }
 
-fn get_bb_meaningful_use_list(bb: &BasicBlock) -> Vec<String> {
-    let mut use_list: Vec<String> = Vec::new();
+fn get_bb_meaningful_use_list(bb: &BasicBlock) -> HashSet<String> {
+    let mut use_list: HashSet<String> = HashSet::new();
     for inst in bb.instrs.iter() {
         if !inst.is_meaningful() {
             continue;
         }
         let mut inst_use_list: Vec<String> = inst.get_use_list();
-        use_list.append(&mut inst_use_list);
+        for elem in inst_use_list {
+            use_list.insert(elem);
+        }
     }
     use_list
 }
 
-fn get_bb_def_list(bb: &BasicBlock) -> Vec<String> {
-    let mut def_list: Vec<String> = Vec::new();
+fn get_bb_def_list(bb: &BasicBlock) -> HashSet<String> {
+    let mut def_list: HashSet<String> = HashSet::new();
     for inst in bb.instrs.iter() {
         if let Some(result) = inst.get_result() {
-            def_list.push(result);
+            def_list.insert(result);
         }
     }
     def_list
@@ -120,8 +124,25 @@ fn global_dce_on_function(function: &mut Function) -> bool {
     for i in 0..bbs.len() {
         let bb = &bbs[i];
         let state: &mut LivenessState = liveness_states.get_mut(i).unwrap();
-        state.defs.append(&mut get_bb_def_list(bb));
-        state.uses.append(&mut get_bb_use_list(bb));
+        state.defs = get_bb_def_list(bb);
+        state.uses = get_bb_use_list(bb);
+    }
+
+    // debug print def-use
+    for i in 0..bbs.len() {
+        let state = liveness_states.get(i).unwrap();
+        println!("bb {} defs: ", i);
+        for d in state.defs.iter() {
+            print!(" {}", d);
+        }
+        println!();
+
+        println!("bb {} uses: ", i);
+        for u in state.uses.iter() {
+            print!(" {}", u);
+        }
+        println!();
+
     }
 
     // populate lookup table to pre and successors of a bb's liveness states
@@ -166,6 +187,23 @@ fn global_dce_on_function(function: &mut Function) -> bool {
                 if in_work_list.insert(parent_idx.clone()) {
                     work_list.push_back(parent_idx.clone());
                 }
+            }
+        }
+    }
+
+    // debug print
+    if true {
+        for i in 0..bbs.len() {
+            println!("bb {}'s liveness:", i);
+            let liveness = liveness_states.get(i).unwrap();
+            println!("Live in: ");
+            for elem in liveness.live_in.iter() {
+                print!(" {}", elem);
+            }
+
+            println!("Live out: ");
+            for elem in liveness.live_out.iter() {
+                print!(" {}", elem);
             }
         }
     }
