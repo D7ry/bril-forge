@@ -101,6 +101,8 @@ impl Function {
                         }
                         ret.push(current_block);
                         current_block = BasicBlock::new();
+                        //NOTE: this is to handle special case where an anonymous
+                        //bb jumps to another bb. we track its index 
                         current_block.in_bb_indices.insert(ret.len() - 1); // the previous bb is
                                                                            // the bb's in bb
                     }
@@ -150,6 +152,9 @@ impl Function {
                 if let Some(successor_index) = bb_labels_to_indices.get(label) {
                     parent_to_child_indices.push((bb_index, *successor_index));
                 }
+            }
+            for idx in bb.in_bb_indices.iter() {
+                parent_to_child_indices.push((idx.clone(), bb_index));
             }
         }
 
