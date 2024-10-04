@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{self, Read, Write};
 use std::collections::hash_set::HashSet;
+use std::io::{self, Read, Write};
 
 // reads a program from a pipe, if not successful panik
 pub fn read_from_pipe() -> Program {
@@ -143,7 +143,7 @@ impl Function {
         }
 
         // Step 1: Collect indices
-        let mut parent_to_child_indices : Vec<(usize, usize)> = Vec::new();
+        let mut parent_to_child_indices: Vec<(usize, usize)> = Vec::new();
 
         for (bb_index, bb) in ret.iter_mut().enumerate() {
             for label in &bb.out_labels {
@@ -410,6 +410,10 @@ impl Instruction {
             Instruction::Label { .. } => true,
             _ => false,
         }
+    }
+
+    pub fn is_meaningful(&self) -> bool {
+        !self.has_no_side_effects()
     }
 
     // whether a instruction has "sideeffects"

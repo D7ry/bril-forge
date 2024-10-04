@@ -25,6 +25,7 @@ fn main() {
     use passes::dce::*;
     use passes::example::*;
     use passes::lvn::*;
+    use passes::live::global_dce_pass_using_livenss;
 
     let dispatch_table: HashMap<&str, fn(&mut Program) -> bool> = create_pass_map!(
         // example passes
@@ -35,7 +36,8 @@ fn main() {
         local_dce_pass,
         // lvn pass
         lvn_pass,
-        global_const_propagation_pass
+        global_const_propagation_pass,
+        global_dce_pass_using_livenss
     );
 
     // read program
