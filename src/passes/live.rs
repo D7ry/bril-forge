@@ -26,9 +26,10 @@ impl LivenessState {
 }
 
 fn get_bb_use_list(bb: &BasicBlock) -> HashSet<String> {
+    return get_bb_meaningful_use_list(bb);
     let mut use_list: HashSet<String> = HashSet::new();
     for inst in bb.instrs.iter() {
-        let mut inst_use_list: Vec<String> = inst.get_use_list();
+        let inst_use_list: Vec<String> = inst.get_use_list();
         for elem in inst_use_list {
             use_list.insert(elem);
         }
@@ -129,21 +130,20 @@ fn global_dce_on_function(function: &mut Function) -> bool {
     }
 
     // debug print def-use
-    for i in 0..bbs.len() {
-        let state = liveness_states.get(i).unwrap();
-        println!("bb {} defs: ", i);
-        for d in state.defs.iter() {
-            print!(" {}", d);
-        }
-        println!();
-
-        println!("bb {} uses: ", i);
-        for u in state.uses.iter() {
-            print!(" {}", u);
-        }
-        println!();
-
-    }
+    // for i in 0..bbs.len() {
+    //     let state = liveness_states.get(i).unwrap();
+    //     println!("bb {} defs: ", i);
+    //     for d in state.defs.iter() {
+    //         print!(" {}", d);
+    //     }
+    //     println!();
+    //
+    //     println!("bb {} uses: ", i);
+    //     for u in state.uses.iter() {
+    //         print!(" {}", u);
+    //     }
+    //     println!();
+    // }
 
     // populate lookup table to pre and successors of a bb's liveness states
     for bb in bbs.iter() {
@@ -159,20 +159,27 @@ fn global_dce_on_function(function: &mut Function) -> bool {
     }
 
     // construct worklist
-    for i in bbs.len()..0 {
+    for i in (0..bbs.len()).rev() {
         work_list.push_back(i);
+        in_work_list.insert(i);
     }
 
     while let Some(bb_idx) = work_list.pop_front() {
+        //println!("updating liveness for bb {}", bb_idx);
         in_work_list.remove(&bb_idx);
-        let bb = bbs.get(bb_idx).unwrap();
+        let bb = bbs.get_mut(bb_idx).unwrap();
         let liveness_state: &LivenessState = liveness_states.get(bb_idx).unwrap();
         let mut parent_liveness_states: Vec<&LivenessState> = Vec::new();
         let mut children_liveness_states: Vec<&LivenessState> = Vec::new();
+        //println!(" has {} parents", bb.in_bb_indices.len());
         for parent_idx in bb.in_bb_indices.iter() {
+            println!("parent {}", parent_idx);
             parent_liveness_states.push(liveness_states.get(*parent_idx).unwrap());
         }
+
+        //println!(" has {} children", bb.out_bb_indices.len());
         for child_idx in bb.out_bb_indices.iter() {
+            //println!("children {}", child_idx);
             children_liveness_states.push(liveness_states.get(*child_idx).unwrap());
         }
         let res = bb_update_liveness(
@@ -181,7 +188,10 @@ fn global_dce_on_function(function: &mut Function) -> bool {
             &parent_liveness_states,
             &children_liveness_states,
         );
+        
         if res.1 {
+            // update liveness
+            *liveness_states.get_mut(bb_idx).unwrap() = res.0;
             // push all parents onto worklist
             for parent_idx in bb.in_bb_indices.iter() {
                 if in_work_list.insert(parent_idx.clone()) {
@@ -200,15 +210,19 @@ fn global_dce_on_function(function: &mut Function) -> bool {
             for elem in liveness.live_in.iter() {
                 print!(" {}", elem);
             }
+            println!();
 
             println!("Live out: ");
             for elem in liveness.live_out.iter() {
                 print!(" {}", elem);
             }
+
+            println!();
         }
     }
 
     // liveness update done, perform dce
+
 
     changed
 }
