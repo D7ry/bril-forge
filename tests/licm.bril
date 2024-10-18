@@ -1,0 +1,15 @@
+
+@main() {
+.preheader:
+    i: int = const 1;
+    jmp .header;
+.header:
+    max: int = const 10;
+    cond: bool = lt i max;
+    br cond .body .exit;
+.body:
+    i: int = add i i;
+    jmp .header;
+.exit:
+    print i;
+}
