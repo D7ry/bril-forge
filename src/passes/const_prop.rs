@@ -211,13 +211,7 @@ fn fn_constant_prop(function: &mut Function) -> bool {
     }
 
     if changed {
-        // bb has changed, flush bb's instrs back to function
-        function.instrs.clear();
-        for basic_block in bbs.iter_mut() {
-            // note here we move all instrs in bb back to function, bbs
-            // are unusable from this point on.
-            function.instrs.append(&mut basic_block.instrs);
-        }
+        function.update(bbs);
     }
 
     changed

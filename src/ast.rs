@@ -41,8 +41,6 @@ pub struct BasicBlock {
     pub out_labels: Vec<String>, // label which this bb is able to jump to
     pub in_bb_indices: HashSet<usize>, // indices into the function's bb that jumps to this bb
     pub out_bb_indices: HashSet<usize>, // indices into the function's bb that this bb jumps out to
-    pub immediate_dominator_index: usize, // index into the function's bb that immediately
-                                          // dominates this bb.
 }
 
 impl BasicBlock {
@@ -53,7 +51,6 @@ impl BasicBlock {
             out_labels: Vec::new(),
             in_bb_indices: HashSet::new(),
             out_bb_indices: HashSet::new(),
-            immediate_dominator_index: 0
         }
     }
 }
@@ -172,6 +169,14 @@ impl Function {
         }
 
         ret
+    }
+
+    // update the function with the new set of basic blocks
+    pub fn update(&mut self, mut bbs: Vec<BasicBlock>) {
+        self.instrs.clear();
+        for bb in bbs.iter_mut() {
+            self.instrs.append(&mut bb.instrs);
+        }
     }
 }
 

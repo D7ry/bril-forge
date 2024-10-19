@@ -1,0 +1,10 @@
+@main {
+  a: int = const 2;
+  b: int = id a;
+  c: bool = eq a a;
+  d: bool = id c;
+  a: int = mul c d;
+.b1:
+  e: int = id b;
+  print a;
+}
