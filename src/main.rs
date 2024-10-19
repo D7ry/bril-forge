@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 mod ast;
+mod dom;
 mod passes;
 use ast::*; // dispatch table definition
 
