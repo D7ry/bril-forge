@@ -4,14 +4,13 @@ use crate::ast::*;
 use std::collections::HashSet;
 
 // dominance info of a basic block
-struct BBDomInfo {
-    dominated: HashSet<usize>,  // indices to BB that are dominated by this BB
-    dominators: HashSet<usize>, // indices to BB that dominates this BB
+pub struct BBDomContext {
+    pub dominators: HashSet<usize>, // indices to BB that dominates this BB
 }
 
 // dominance context of a function's basic blocks
-struct DomContext {
-    bbs: Vec<BBDomInfo>,
+pub struct DomContext {
+    pub bbs: Vec<BBDomContext>,
 }
 
 fn get_post_order_traversal_ordering(bbs: &Vec<BasicBlock>) -> Vec<usize> {
@@ -45,7 +44,9 @@ fn get_post_order_traversal_ordering(bbs: &Vec<BasicBlock>) -> Vec<usize> {
     let mut ordering: Vec<usize> = Vec::new();
     let mut visited: HashSet<usize> = HashSet::new();
     // note that the root bb dominates all other reacheable bbs, so we can simply go from root bb
-    visit(0, bbs, &mut ordering, &mut visited);
+    if !bbs.is_empty() {
+        visit(0, bbs, &mut ordering, &mut visited);
+    }
 
     ordering
 }
@@ -56,6 +57,21 @@ fn get_reverse_post_order_traversal_ordering(bbs: &Vec<BasicBlock>) -> Vec<usize
     ret
 }
 
+fn get_set_intersection(sets: &Vec<HashSet<usize>>) -> HashSet<usize> {
+    if sets.is_empty() {
+        return HashSet::new();
+    }
+    let smallest_set = sets.iter().min_by_key(|set| set.len()).unwrap();
+
+    let intersection_set = smallest_set
+        .iter()
+        .filter(|&&elem| sets.iter().all(|set| set.contains(&elem)))
+        .cloned()
+        .collect();
+
+    intersection_set
+}
+
 // get the dominance context of the function's bbs using reverse post-order traversal.
 pub fn get_dom_context(function: Function) -> DomContext {
     let mut ctx: DomContext = DomContext { bbs: Vec::new() };
@@ -64,8 +80,7 @@ pub fn get_dom_context(function: Function) -> DomContext {
 
     // initialize ctx with empty data
     for _i in 0..bbs.len() {
-        ctx.bbs.push(BBDomInfo {
-            dominated: HashSet::new(),
+        ctx.bbs.push(BBDomContext {
             dominators: HashSet::new(),
         })
     }
@@ -75,21 +90,37 @@ pub fn get_dom_context(function: Function) -> DomContext {
     // visit the bbs in reverse post order, calculating dom context for each bb
     for bb_idx in reverse_post_ordering.iter() {
         let bb: &BasicBlock;
-        let bb_dom_ctx: &mut BBDomInfo;
         unsafe {
             bb = bbs.get_unchecked(bb_idx.clone());
+        }
+
+        // in (bb) = and(out(parent) for all parent in parent(bb) + bb
+
+        let mut all_parent_dominators: Vec<HashSet<usize>> = Vec::new();
+
+        // take intersection of all parents' dominators
+
+        for parent_bb_idx in bb.in_bb_indices.iter() {
+            let parent_bb_ctx;
+            unsafe {
+                parent_bb_ctx = ctx.bbs.get_unchecked_mut(parent_bb_idx.clone());
+            }
+
+            all_parent_dominators.push(parent_bb_ctx.dominators.clone());
+        }
+
+        let parent_dominators_itersection: HashSet<usize> =
+            get_set_intersection(&all_parent_dominators);
+
+        let bb_dom_ctx: &mut BBDomContext;
+        unsafe {
             bb_dom_ctx = ctx.bbs.get_unchecked_mut(bb_idx.clone());
         }
-        
-        // in (bb) = and(out(parent) for all parent in parent(bb) + bb
-        
-        // take intersection of all parents' dominators
-        
-        // also register bb as dominated by parents
 
-
+        // shared dominators of parents dominate the child
+        bb_dom_ctx.dominators = parent_dominators_itersection;
         // bb dominates itself
-        bb_dom_ctx.dominated.insert(bb_idx.clone());
+        bb_dom_ctx.dominators.insert(bb_idx.clone());
     }
 
     ctx
