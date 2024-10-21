@@ -16,7 +16,7 @@ cost -- therefore we choose the dom tree approach.
 
 ### Dom Tree
 
-Implementation source: [`dom.rs`](../src/passes/dom.rs)
+Implementation source: [`dom.rs`](../src/dom.rs)
 
 To generate the dom-tree, we perform reverse post-order traversal of all the bbs in a CFG using a forward dataflow analysis, where:
 - `meet()` is the set-intersection of parents' dominators
@@ -55,7 +55,10 @@ while let Some(node_bb_idx) = work_list.pop() {
 }
 ```
 
-## Optimizing Loop Structure: Creating Pre-header
+Note that this algorithm also introduces BBs that may not be dominated by the header -- still, by
+definition, they are a part of the natural loop(TODO: figure out why we want them to be included)
+
+## Loop Normalization: Creating Pre-header
 
 LICM hoists invariants to a common section that's only run once -- we create a pre-header section
 that dominates all of the loop, including the header, where we can safely hoist the code.
@@ -69,9 +72,113 @@ the versatility and beauty of C pointers...
 
 ## Loop Invariant Code Motion
 
-With the pre-header set up, 
+Implementation source: [`loop.rs`](../src/passes/loop.rs)
 
+With the pre-header set up, for each loop, we iteratively hoist invariants until convergence:
 
+```rust
+for loop_ in loops.iter_mut() {
+    while(licm_loop(loop_, &mut bbs)) {changed = true};
+}
+```
+
+Note the following example uses relaxation(although relaxation is not negatively affecting the
+following case) -- we need to additionally turn the loop into a do-while loop to ensure the
+invariant is needed.
 
 ### Example Program
 
+Before:
+```
+@main() {
+    i: int = const 1;
+.header:
+    max: int = const 10;
+    cond: bool = lt i max;
+    br cond .body .exit;
+.body:
+    should_get_hoisted: int = const 15;
+    should_get_hoisted_2: int = id should_get_hoisted;
+    should_get_hoisted_3: int = add should_get_hoisted should_get_hoisted_2;
+    print should_get_hoisted_3
+    jmp .header;
+.exit:
+}
+```
+
+After Adding pre-header:
+```
+@main() {
+    i: int = const 1;
+.preheader:
+.header:
+    max: int = const 10;
+    cond: bool = lt i max;
+    br cond .body .exit;
+.body:
+    should_get_hoisted: int = const 15;
+    should_get_hoisted_2: int = id should_get_hoisted;
+    should_get_hoisted_3: int = add should_get_hoisted should_get_hoisted_2;
+    print should_get_hoisted_3
+    jmp .header;
+.exit:
+}
+```
+
+After one licm iteration:
+```
+@main() {
+    i: int = const 1;
+.preheader:
+    should_get_hoisted: int = const 15;
+.header:
+    max: int = const 10;
+    cond: bool = lt i max;
+    br cond .body .exit;
+.body:
+    should_get_hoisted_2: int = id should_get_hoisted;
+    should_get_hoisted_3: int = add should_get_hoisted should_get_hoisted_2;
+    print should_get_hoisted_3
+    jmp .header;
+.exit:
+}
+```
+
+After three licm iterations(til convergence):
+```
+@main() {
+    i: int = const 1;
+.preheader:
+    should_get_hoisted: int = const 15;
+    should_get_hoisted_2: int = id should_get_hoisted;
+    should_get_hoisted_3: int = add should_get_hoisted should_get_hoisted_2;
+.header:
+    max: int = const 10;
+    cond: bool = lt i max;
+    br cond .body .exit;
+.body:
+    print should_get_hoisted_3
+    jmp .header;
+.exit:
+}
+```
+
+One interesting observation is that loop invariants that are moved to the pre-header are more
+subjective to constant propagation/DCE -- as observed in the following:
+
+After a constant prop/DCE pass on the pre-header block:
+```
+@main() {
+    i: int = const 1;
+.preheader:
+    should_get_hoisted_3: int = const 30;
+.header:
+    max: int = const 10;
+    cond: bool = lt i max;
+    br cond .body .exit;
+.body:
+    print should_get_hoisted_3
+    jmp .header;
+.exit:
+}
+```
