@@ -73,10 +73,8 @@ fn get_set_intersection(sets: &Vec<HashSet<usize>>) -> HashSet<usize> {
 }
 
 // get the dominance context of the function's bbs using reverse post-order traversal.
-pub fn get_dom_context(function: Function) -> DomContext {
+pub fn get_dom_context(bbs: &Vec<BasicBlock>) -> DomContext {
     let mut ctx: DomContext = DomContext { bbs: Vec::new() };
-
-    let bbs: Vec<BasicBlock> = function.get_basic_blocks();
 
     // initialize ctx with empty data
     for _i in 0..bbs.len() {

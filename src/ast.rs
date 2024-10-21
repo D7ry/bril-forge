@@ -37,15 +37,24 @@ impl Program {
 #[derive(Debug)]
 pub struct BasicBlock {
     pub instrs: Vec<Instruction>,
+    pub in_bb_indices: HashSet<usize>, // indices into the function's bb that jumps to this bb
+    pub out_bb_indices: HashSet<usize>, // indices into the function's bb that this bb jumps out to
+}
+
+
+// innter representation of bb, ocntains labels for bb indexing
+#[derive(Debug)]
+struct __BasicBlock {
+    pub instrs: Vec<Instruction>,
     pub label: Option<String>, // label which other bb's use to jump in to this bb
     pub out_labels: Vec<String>, // label which this bb is able to jump to
     pub in_bb_indices: HashSet<usize>, // indices into the function's bb that jumps to this bb
     pub out_bb_indices: HashSet<usize>, // indices into the function's bb that this bb jumps out to
 }
 
-impl BasicBlock {
-    pub fn new() -> BasicBlock {
-        BasicBlock {
+impl __BasicBlock {
+    fn new() -> __BasicBlock {
+        __BasicBlock {
             instrs: Vec::new(),
             label: None,
             out_labels: Vec::new(),
@@ -71,8 +80,8 @@ impl Function {
     // note that instructions in BB are cloned instructions
     // so only may use it for anlysis passes
     pub fn get_basic_blocks(&self) -> Vec<BasicBlock> {
-        let mut ret: Vec<BasicBlock> = Vec::new();
-        let mut current_block = BasicBlock::new();
+        let mut bbs: Vec<__BasicBlock> = Vec::new();
+        let mut current_block = __BasicBlock::new();
 
         // <basic block's in label, indices to `ret` of the corresponding basic block
         let mut bb_labels_to_indices: std::collections::HashMap<String, usize> =
@@ -97,13 +106,13 @@ impl Function {
                             }
                         }
                         if let Some(block_label) = current_block.label.clone() {
-                            bb_labels_to_indices.insert(block_label, ret.len());
+                            bb_labels_to_indices.insert(block_label, bbs.len());
                         }
-                        ret.push(current_block);
-                        current_block = BasicBlock::new();
+                        bbs.push(current_block);
+                        current_block = __BasicBlock::new();
                         //NOTE: this is to handle special case where an anonymous
                         //bb jumps to another bb. we track its index 
-                        current_block.in_bb_indices.insert(ret.len() - 1); // the previous bb is
+                        current_block.in_bb_indices.insert(bbs.len() - 1); // the previous bb is
                                                                            // the bb's in bb
                     }
                     // push label inst
@@ -128,11 +137,11 @@ impl Function {
                     }
                     // shouldn't happen but just in case
                     if let Some(label) = current_block.label.clone() {
-                        bb_labels_to_indices.insert(label, ret.len());
+                        bb_labels_to_indices.insert(label, bbs.len());
                     }
-                    ret.push(current_block);
+                    bbs.push(current_block);
                     // end current block
-                    current_block = BasicBlock::new();
+                    current_block = __BasicBlock::new();
                 }
                 _ => {
                     // For other instructions, add to the current block
@@ -141,13 +150,13 @@ impl Function {
             }
         }
         if !current_block.instrs.is_empty() {
-            ret.push(current_block);
+            bbs.push(current_block);
         }
 
         // Step 1: Collect indices
         let mut parent_to_child_indices: Vec<(usize, usize)> = Vec::new();
 
-        for (bb_index, bb) in ret.iter_mut().enumerate() {
+        for (bb_index, bb) in bbs.iter_mut().enumerate() {
             for label in &bb.out_labels {
                 if let Some(successor_index) = bb_labels_to_indices.get(label) {
                     parent_to_child_indices.push((bb_index, *successor_index));
@@ -160,12 +169,19 @@ impl Function {
 
         // Step 2: Mutate using collected indices
         for (parent_index, child_index) in parent_to_child_indices {
-            if let Some(bb) = ret.get_mut(parent_index) {
+            if let Some(bb) = bbs.get_mut(parent_index) {
                 bb.out_bb_indices.insert(child_index);
             }
-            if let Some(bb) = ret.get_mut(child_index) {
+            if let Some(bb) = bbs.get_mut(child_index) {
                 bb.in_bb_indices.insert(parent_index);
             }
+        }
+
+        let mut ret : Vec<BasicBlock> = Vec::new();
+
+        for bb in bbs {
+            let ret_bb = BasicBlock{instrs: bb.instrs, in_bb_indices: bb.in_bb_indices, out_bb_indices: bb.out_bb_indices};
+            ret.push(ret_bb);
         }
 
         ret
