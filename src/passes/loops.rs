@@ -128,10 +128,50 @@ fn create_and_insert_pre_header(
     }
 }
 
-
 fn licm_loop(loop_: &mut Loop, bbs: &mut Vec<BasicBlock>) -> bool {
     let mut changed: bool = false;
+    let mut bbs_to_hoist: Vec<Vec<usize>> = Vec::new();
+    for node_idx in loop_.nodes.iter() {
+        let mut to_hoist: Vec<usize> = Vec::new();
+        let bb;
+        unsafe {
+            bb = bbs.get_unchecked_mut(node_idx.clone());
+        }
+        for (inst_idx, inst) in bb.instrs.iter().enumerate() {
+            // POC here only
+            match inst {
+                Instruction::Opcode(inst) => match inst {
+                    OpcodeInstruction::Const { dest, typ, value } => {
+                        to_hoist.push(inst_idx);
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    }
 
+    let mut insts_to_hoist: Vec<Instruction> = Vec::new();
+
+    for (bb_idx, to_hoist) in bbs_to_hoist.iter().enumerate() {
+        let bb;
+        unsafe {
+            bb = bbs.get_unchecked_mut(bb_idx.clone());
+        }
+        for inst_idx in to_hoist.iter().rev() {
+            let inst = bb.instrs.remove(inst_idx.clone());
+            insts_to_hoist.push(inst);
+        }
+    }
+
+    // finally push insts to pre-header
+    let pre_header_bb;
+    unsafe {
+        pre_header_bb = bbs.get_unchecked_mut(loop_.header_idx);
+    }
+    for inst in insts_to_hoist {
+        pre_header_bb.instrs.push(inst);
+    }
 
     changed
 }

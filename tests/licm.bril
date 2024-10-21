@@ -8,8 +8,9 @@
     cond: bool = lt i max;
     br cond .body .exit;
 .body:
-    i: int = add i i;
+    should_get_hoisted: int = const 15;
+    print should_get_hoisted
     jmp .header;
 .exit:
-    print i;
+
 }
