@@ -7,3 +7,5 @@ Optimization passes, but in `rust`
 [Week1](/writeup/week1_writeup.md)
 
 [Week2](/writeup/week2_writeup.md)
+
+[Week3](/writeup/week3_writeup.md)
