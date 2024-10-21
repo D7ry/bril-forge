@@ -1,4 +1,4 @@
-# Week2 Writeup: Loops
+# Week3 Writeup: Loops
 
 All optimization passes are verified with bril programs in `benchmarks` to ensure correctness.
 
