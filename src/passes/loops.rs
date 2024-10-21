@@ -3,18 +3,21 @@ use crate::dom;
 use ast::*;
 use dom::*;
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 struct Loop {
-    header_idx: usize,
-    back_node_idx: usize, // node that back-edges back to the header
-    nodes: Vec<usize>,    // all nodes execept for header and back node
+    pub header_idx: usize,
+    pub back_node_idx: usize, // node that back-edges back to the header
+    pub nodes: Vec<usize>,    // all nodes execept for header and back node
 }
 
 // create a pre-header block and inserts it to the basic blocks right before the block with
 // `header_idx`.
 // All bbs that originally flow to the header, flows to the pre-header, execept for the end of the
 // loop with `back_node_idx`, which still flows to the original header.
+//
+// the created pre-header takes over `header_idx`, and the old header uses `header_idx + 1`
+// note that all external state indices to bbs that are originally >= `header_idx` should be incremented by one
 fn create_and_insert_pre_header(
     bbs: &mut Vec<BasicBlock>,
     header_idx: usize,
@@ -101,7 +104,7 @@ fn create_and_insert_pre_header(
                     // change the labels to be pointing to old header...
                     match inst {
                         Instruction::Opcode(inst) => match inst {
-                            OpcodeInstruction::Br { labels, ..} => {
+                            OpcodeInstruction::Br { labels, .. } => {
                                 for label in labels.iter_mut() {
                                     if *label == pre_header_label {
                                         *label = old_header_label.clone();
@@ -125,6 +128,14 @@ fn create_and_insert_pre_header(
     }
 }
 
+
+fn licm_loop(loop_: &mut Loop, bbs: &mut Vec<BasicBlock>) -> bool {
+    let mut changed: bool = false;
+
+
+    changed
+}
+
 // function-scope licm
 fn licm_function(function: &mut Function) -> bool {
     let mut changed: bool = false;
@@ -132,15 +143,62 @@ fn licm_function(function: &mut Function) -> bool {
 
     let dom_context: DomContext = get_dom_context(&bbs);
 
-    let loops: Vec<Loop> = Vec::new();
+    let mut loops: Vec<Loop> = Vec::new();
 
     // find loops using back-edges, by itearting over all edges and check dom tree(technically can
-    // also use DFS to figure this out, without dom tree)
+    // also use dfs to figure this out, without dom tree)
+    for (bb_idx, bb) in bbs.iter().enumerate() {
+        let bb_dom_context: &BBDomContext;
+        unsafe {
+            bb_dom_context = dom_context.bbs.get_unchecked(bb_idx);
+        }
+        for out_bb_idx in bb.out_bb_indices.iter() {
+            // we have a back edge if the dest of an edge dominates src
+            let is_back_edge: bool = bb_dom_context.dominators.contains(out_bb_idx);
+            if is_back_edge {
+                let new_loop: Loop = Loop {
+                    header_idx: out_bb_idx.clone(),
+                    back_node_idx: bb_idx,
+                    nodes: Vec::new(),
+                };
+                loops.push(new_loop);
+            }
+        }
+    }
 
+    // add pre-header
+    for loop_ in loops.iter_mut() {
+        create_and_insert_pre_header(&mut bbs, loop_.header_idx, loop_.back_node_idx);
+    }
 
+    // populate loop nodes
+    for loop_ in loops.iter_mut() {
+        let starting_node = loop_.back_node_idx.clone();
+        let mut work_list: Vec<usize> = vec![starting_node];
+        let mut processed: HashSet<usize> = HashSet::new();
+        processed.insert(starting_node);
 
-    // for all loops, insert a pre-header -- useful for hoisting invariants!
-    for l in loops.iter() {}
+        while let Some(node_bb_idx) = work_list.pop() {
+            // add all predecessors of the current node, that are not the header node, to the wl as well as
+            // the nodes list
+            let bb;
+            unsafe {
+                bb = bbs.get_unchecked(node_bb_idx);
+            }
+            for parent_idx in bb.in_bb_indices.iter() {
+                if parent_idx.clone() == loop_.header_idx || processed.contains(parent_idx) {
+                    continue;
+                }
+                processed.insert(parent_idx.clone());
+                loop_.nodes.push(parent_idx.clone());
+                work_list.push(parent_idx.clone());
+            }
+        }
+    }
+
+    for loop_ in loops.iter_mut() {
+        changed |= licm_loop(loop_, &mut bbs);
+    }
 
     if changed {
         function.update(bbs);
