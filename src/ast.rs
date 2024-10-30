@@ -198,9 +198,9 @@ impl Function {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Argument {
-    name: String,
+    pub name: String,
     #[serde(rename = "type")]
-    arg_type: Type,
+    pub arg_type: Type,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
