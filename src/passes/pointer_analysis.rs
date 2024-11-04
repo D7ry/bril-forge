@@ -33,7 +33,7 @@ fn build_point_to_graph(
                 }
                 OpcodeInstruction::Ptradd { args, dest, typ }
                 | OpcodeInstruction::Id { args, dest, typ } => {
-                    assert!(args.len() == 1);
+                    assert!(args.len() == 1 || args.len() == 2);
                     let src_var_name = args.first().unwrap();
                     let mut src_pointed_to: HashSet<usize> = HashSet::new();
                     if let Some(src_pointed_to_it) = point_to_graph.get(src_var_name) {
