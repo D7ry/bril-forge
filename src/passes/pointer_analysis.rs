@@ -5,8 +5,6 @@ use dom::*;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-fn pointer_analysis_pass_bb(bb: &mut BasicBlock) -> bool {}
-
 // build a points-to graph using information from a bb
 fn build_point_to_graph(
     bb: &BasicBlock,
@@ -18,10 +16,10 @@ fn build_point_to_graph(
 
     for (inst_id_local, inst) in bb.instrs.iter().enumerate() {
         let inst_id_global: usize = inst_id_local + bb_inst_offset; // function-scope instruction
-        //x = alloc n: x points to this allocations
-        //x = id y: x points to the same locations as y did
-        //x = ptradd p offset: same as id (conservative)
-        //x = load p: we aren't tracking anything about p, so x points to all memory locations
+                                                                    //x = alloc n: x points to this allocations
+                                                                    //x = id y: x points to the same locations as y did
+                                                                    //x = ptradd p offset: same as id (conservative)
+                                                                    //x = load p: we aren't tracking anything about p, so x points to all memory locations
         match inst {
             // why don't we have cpp iterators ugh
             Instruction::Opcode(inst) => match inst {
@@ -33,8 +31,8 @@ fn build_point_to_graph(
                     pointed_to.insert(inst_id_global);
                     changed |= true;
                 }
-                OpcodeInstruction::Ptradd { args, dest, typ } |
-                OpcodeInstruction::Id { args, dest, typ } => {
+                OpcodeInstruction::Ptradd { args, dest, typ }
+                | OpcodeInstruction::Id { args, dest, typ } => {
                     assert!(args.len() == 1);
                     let src_var_name = args.first().unwrap();
                     let mut src_pointed_to: HashSet<usize> = HashSet::new();
@@ -54,7 +52,8 @@ fn build_point_to_graph(
                         point_to_graph.insert(dest.clone(), HashSet::new());
                     }
                     let pointed_to: &mut HashSet<usize> = point_to_graph.get_mut(dest).unwrap();
-                    for i in 0..num_fn_insts { // points to everything
+                    for i in 0..num_fn_insts {
+                        // points to everything
                         pointed_to.insert(i);
                     }
                     changed |= true;
@@ -68,9 +67,98 @@ fn build_point_to_graph(
     changed
 }
 
-fn dead_store_elimination(function: &mut Function, point_to_graph: &HashMap<String, HashSet<usize>>) -> bool {
-    let mut changed: bool = false;
+fn var_alias(var1: &String, var2: &String, point_to_graph: &HashMap<String, HashSet<usize>>) -> bool{
+    if point_to_graph.contains_key(var1) && point_to_graph.contains_key(var2) {
+        let var1_pointed_to: &HashSet<usize> = point_to_graph.get(var1).unwrap();
+        let var2_pointed_to: &HashSet<usize> = point_to_graph.get(var2).unwrap();
 
+        let mut has_alias: bool = false;
+
+        // check for point to graph overlap
+        for v in var1_pointed_to.iter() {
+            if var2_pointed_to.contains(v) {
+                has_alias = true;
+                break;
+            }
+        }
+
+        has_alias
+    } else {
+        false
+    }
+}
+
+fn dead_store_elimination_bb(
+    bb: &mut BasicBlock,
+    point_to_graph: &HashMap<String, HashSet<usize>>, // var name -> memory ids var could point to
+) -> bool {
+    let mut insts_to_delete: Vec<usize> = Vec::new();
+
+    let mut unused_stores: HashMap<String, usize> = HashMap::new(); // <store dst, inst idx>
+    // going through instructions in order
+    for (inst_idx, inst) in bb.instrs.iter().enumerate() {
+        match inst {
+            Instruction::Opcode(inst) => match inst {
+                OpcodeInstruction::Store { args } => {
+                    // if any previous stores to the same location remains unused, remove
+                    // everything.
+                    assert!(args.len() == 2);
+                    // store, location, value
+                    let store_dst = args.get(0).unwrap();
+                    if let Some(unused_store_inst_idx) = unused_stores.get(store_dst) {
+                        insts_to_delete.push(unused_store_inst_idx.clone());
+                    }
+                    unused_stores.insert(store_dst.clone(), inst_idx);
+                }
+                OpcodeInstruction::Load { args, dest, typ } => {
+                    // if anything loads from the location, it's used!
+                    assert!(args.len() == 1);
+                    // for all unused stores, check for aliasing with the src of this load,
+                    // if they alias, the unused store should be flagged as used.
+                    let load_src = args.first().unwrap();
+                    let mut used_stores: Vec<String> = Vec::new();
+                    for elem in unused_stores.iter() {
+                        let store_dst = elem.0;
+                        let _store_inst_idx = elem.1.clone();
+                        if var_alias(store_dst, load_src, point_to_graph) {
+                            used_stores.push(store_dst.clone());
+                        }
+                    }
+                    for store in used_stores {
+                        unused_stores.remove(&store);
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    let changed: bool = !insts_to_delete.is_empty();
+
+    // pop insts in reverse order
+    insts_to_delete.sort();
+    insts_to_delete.reverse();
+
+    for idx in insts_to_delete.iter() {
+        bb.instrs.remove(*idx);
+    }
+
+    changed
+}
+
+fn dead_store_elimination(
+    function: &mut Function,
+    point_to_graph: &HashMap<String, HashSet<usize>>,
+) -> bool {
+    let mut changed: bool = false;
+    let mut bbs = function.get_basic_blocks();
+    for bb in bbs.iter_mut() {
+        changed |= dead_store_elimination_bb(bb, point_to_graph);
+    }
+    if changed {
+        function.update(bbs);
+    }
     changed
 }
 
