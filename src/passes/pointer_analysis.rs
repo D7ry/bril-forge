@@ -97,6 +97,9 @@ fn dead_store_elimination_bb(
     let mut unused_stores: HashMap<String, usize> = HashMap::new(); // <store dst, inst idx>
     // going through instructions in order
     for (inst_idx, inst) in bb.instrs.iter().enumerate() {
+        if let Some(result) = inst.get_result() {
+            unused_stores.remove(&result);
+        }
         match inst {
             Instruction::Opcode(inst) => match inst {
                 OpcodeInstruction::Store { args } => {
