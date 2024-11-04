@@ -1,0 +1,38 @@
+# simple DSE similar to simple DCE
+@simple_dead_store {
+  c1: int = const 1;
+  v0: ptr<int> = alloc c1;
+  x1: int = const 3;
+
+  store v0 x1; # store x1 into v0(dead store)
+  x2: int = const 4;
+  store v0 x2; # store x2 into v0
+  
+  x3: int = load v0;
+  print x3;
+  free v0;
+}
+
+# creates two pointers that aliases with each other, the 
+# usage of one pointer marks the other as used, hence
+# disqualifying DSE
+@no_dead_store_because_aliasing {
+  c1: int = const 1;
+  v0: ptr<int> = alloc c1;
+  x1: int = const 3;
+
+  store v0 x1; # store x1 into v0
+  
+  v1: ptr<int> = id v0; # v1 also points to v0's addr
+
+  # we load from v1, since it aliases with v0, v0 is no longer a dead store
+  x1_1: int = load v1; 
+
+  x2: int = const 4;
+  store v0 x2; # store x2 into v0
+  
+  x3: int = load v0;
+  print x3;
+  free v0;
+}
+
